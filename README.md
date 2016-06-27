@@ -1,3 +1,3 @@
-# emqtt_coap
+# emqttd_coap
 
 CoAP Plugin
