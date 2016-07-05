@@ -1,3 +1,4 @@
 deps/
 ebin/
 emqtt_coap.d
+.erlang.mk/
