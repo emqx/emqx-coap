@@ -14,6 +14,8 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
+-type(coap_method() :: 'GET' | 'POST' | 'PUT' | 'DELETE').
+
 -record(coap_message, {type, method, code, id, token = <<>>, options = [], payload = <<>>}).
 
 -type(coap_message() :: #coap_message{}).
