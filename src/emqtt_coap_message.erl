@@ -43,7 +43,7 @@
 -record(state, {number = 0, delta = 0, options = []}).
 
 -spec(parse(binary()) -> coap_message()).
-parse(<<?VERSION:2, Type:2, TKL:4, Code:8, MsgId:16/big-integer, Token:TKL/bytes, Bin/binary>>) ->
+parse(<<?VERSION:2, T:2, TKL:4, C:8, Id:16/big-integer, Token:TKL/bytes, Bin/binary>>) ->
     {Options, Payload} = parse_option(Bin, #state{}),
     #coap_message{type = Type, code = Code, id = MsgId, token = Token,
                   options = Options, payload = Payload}.
