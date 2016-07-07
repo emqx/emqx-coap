@@ -45,6 +45,8 @@ handle_cast(_Msg, State) ->
 
 handle_info({datagram, _From, Packet}, State) ->
     io:format("RECV: ~p~n", [Packet]),
+    Message = emqtt_coap_message:parse(Packet),
+    io:format("MSG: ~p~n", [Message]),
 	{noreply, State};
 
 handle_info(_Info, State) ->

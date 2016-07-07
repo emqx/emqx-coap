@@ -34,6 +34,6 @@ start_gateway(Sock, Peer) ->
 
 init([]) ->
     {ok, {{simple_one_for_one, 0, 1},
-          [{caop_gateway, {emqtt_caop_gateway, start_link, []},
-              temporary, 5000, worker, [emqtt_caop_gateway]}]}}.
+          [{caop_gateway, {emqtt_coap_gateway, start_link, []},
+              temporary, 5000, worker, [emqtt_coap_gateway]}]}}.
 
