@@ -2,7 +2,7 @@
 emqtt_coap
 ==========
 
-Erlang CoAP Server
+Erlang CoAP Gateway
 
 License
 -------
