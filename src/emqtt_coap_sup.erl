@@ -20,23 +20,22 @@
 
 -behaviour(supervisor).
 
--export([start_link/1]).
-
--export([init/1]).
+-export([start_link/1, init/1]).
 
 start_link(Listener) ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, [Listener]).
 
-init([Port, Opts]) ->
-    ChanSup = {emqtt_coap_channel_sup,
-                {emqtt_coap_channel_sup, start_link, []},
-                  permanent, infinity, supervisor, [emqtt_coap_channel_sup]},
-
-    MFA = {emqtt_coap_channel_sup, start_channel, []},
+init([{Port, Opts}]) ->
+    GwSup = {emqtt_coap_gateway_sup,
+              {emqtt_coap_gateway_sup, start_link, []},
+                permanent, infinity, supervisor, [emqtt_coap_gateway_sup]},
 
     UdpSrv = {emqtt_coap_udp_server,
-               {esockd_udp, server, [mqtt_sn, Port, Opts, MFA]},
+               {esockd_udp, server, udp_args(Port, Opts)},
                  permanent, 5000, worker, [esockd_udp]},
 
-	{ok, {{one_for_one, 10, 3600}, [ChanSup, UdpSrv]}}.
+	{ok, {{one_for_one, 10, 3600}, [GwSup, UdpSrv]}}.
+
+udp_args(Port, Opts) ->
+    [coap, Port, Opts, {emqtt_coap_gateway_sup, start_gateway, []}].
 

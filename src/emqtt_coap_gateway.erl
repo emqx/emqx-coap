@@ -14,18 +14,45 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqtt_coap_app).
+-module(emqtt_coap_gateway).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(application).
+%% API.
+-export([start_link/2]).
 
--export([start/2, stop/1]).
+%% gen_server.
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
-start(_Type, _Args) ->
-    {ok, Listener} = application:get_env(emqtt_coap, listener),
-	emqtt_coap_sup:start_link(Listener).
+-record(state, {sock, peer}).
 
-stop(_State) ->
+%% API.
+
+-spec(start_link(inet:socket(), {inet:ip_address(), inet:port()}) -> {ok, pid()}).
+start_link(Sock, Peer) ->
+	gen_server:start_link(?MODULE, [Sock, Peer], []).
+
+%% gen_server.
+init([Sock, Peer]) ->
+	{ok, #state{sock = Sock, peer = Peer}}.
+
+handle_call(_Request, _From, State) ->
+	{reply, ignored, State}.
+
+handle_cast(_Msg, State) ->
+	{noreply, State}.
+
+handle_info({datagram, _From, Packet}, State) ->
+    io:format("RECV: ~p~n", [Packet]),
+	{noreply, State};
+
+handle_info(_Info, State) ->
+	{noreply, State}.
+
+terminate(_Reason, _State) ->
 	ok.
+
+code_change(_OldVsn, State, _Extra) ->
+	{ok, State}.
 

@@ -18,13 +18,14 @@
 
 -author("Feng Lee <feng@emqtt.io>").
 
--export([new/1, respond/2, ok/2]).
+-export([new/3, respond/2, ok/2]).
 
-new(Peer) -> {?MODULE, [Peer]}.
+new(Sock, Peer, Msg) ->
+    {?MODULE, [Sock, Peer, Msg]}.
 
-respond(Response, {?MODULE, [Peer]}) ->
+respond(Response, {?MODULE, [Sock, Peer, Msg]}) ->
     ok.
 
-ok(Response, {?MODULE, [Peer]}) ->
+ok(Response, {?MODULE, [Sock, Peer, Msg]}) ->
     ok.
 

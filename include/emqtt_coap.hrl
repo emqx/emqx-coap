@@ -14,57 +14,107 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
-%% CON: Confirmable
-%% NON: Non-confirmable
-%% ACK: Acknowledgement
-%% RST: Rest
+%% CON: Confirmable, NON: Non-confirmable, ACK: Acknowledgement, RST: Rest
 -type(coap_type() :: 'CON' | 'NON' | 'ACK' | 'RST').
+
+% +------+--------+-----------+
+% | Code | Name   | Reference |
+% +------+--------+-----------+
+% | 0.01 | GET    | [RFC7252] |
+% | 0.02 | POST   | [RFC7252] |
+% | 0.03 | PUT    | [RFC7252] |
+% | 0.04 | DELETE | [RFC7252] |
+% +------+--------+-----------+
 
 -type(coap_method() :: 'GET' | 'POST' | 'PUT' | 'DELETE').
 
--type(coap_option() :: 'Etag').
+% +--------+------------------+-----------+
+% | Number | Name             | Reference |
+% +--------+------------------+-----------+
+% |      0 | (Reserved)       | [RFC7252] |
+% |      1 | If-Match         | [RFC7252] |
+% |      3 | Uri-Host         | [RFC7252] |
+% |      4 | ETag             | [RFC7252] |
+% |      5 | If-None-Match    | [RFC7252] |
+% |      7 | Uri-Port         | [RFC7252] |
+% |      8 | Location-Path    | [RFC7252] |
+% |     11 | Uri-Path         | [RFC7252] |
+% |     12 | Content-Format   | [RFC7252] |
+% |     14 | Max-Age          | [RFC7252] |
+% |     15 | Uri-Query        | [RFC7252] |
+% |     17 | Accept           | [RFC7252] |
+% |     20 | Location-Query   | [RFC7252] |
+% |     35 | Proxy-Uri        | [RFC7252] |
+% |     39 | Proxy-Scheme     | [RFC7252] |
+% |     60 | Size1            | [RFC7252] |
+% |    128 | (Reserved)       | [RFC7252] |
+% |    132 | (Reserved)       | [RFC7252] |
+% |    136 | (Reserved)       | [RFC7252] |
+% |    140 | (Reserved)       | [RFC7252] |
+% +--------+------------------+-----------+
+
+-type(coap_option() :: 'If-Match'
+                     | 'Uri-Host'
+                     | 'ETag'
+                     | 'If-None-Match'
+                     | 'Uri-Port'
+                     | 'Location-Path'
+                     | 'Uri-Path'
+                     | 'Content-Format'
+                     | 'Max-Age'
+                     | 'Uri-Query'
+                     | 'Accept'
+                     | 'Location-Query'
+                     | 'Proxy-Uri'
+                     | 'Proxy-Scheme'
+                     | 'Size1').
 
 -record(coap_message, {type, method, code, id, token = <<>>,
                        options = [], payload = <<>>}).
 
 -type(coap_message() :: #coap_message{}).
 
-%% Get response: 2.05(Content), 2.03(Valid),
-%% Post response: 2.01(Created), 2.04(Changed), 2.02(Deleted)
-%% Put: 2.04(Changed), 2.01(Created)
-%% Delete: 2.02(Deleted)
+% CoAP Response Codes:
+%           
+% +------+------------------------------+-----------+
+% | Code | Description                  | Reference |
+% +------+------------------------------+-----------+
+% | 2.01 | Created                      | [RFC7252] |
+% | 2.02 | Deleted                      | [RFC7252] |
+% | 2.03 | Valid                        | [RFC7252] |
+% | 2.04 | Changed                      | [RFC7252] |
+% | 2.05 | Content                      | [RFC7252] |
+% | 4.00 | Bad Request                  | [RFC7252] |
+% | 4.01 | Unauthorized                 | [RFC7252] |
+% | 4.02 | Bad Option                   | [RFC7252] |
+% | 4.03 | Forbidden                    | [RFC7252] |
+% | 4.04 | Not Found                    | [RFC7252] |
+% | 4.05 | Method Not Allowed           | [RFC7252] |
+% | 4.06 | Not Acceptable               | [RFC7252] |
+% | 4.12 | Precondition Failed          | [RFC7252] |
+% | 4.13 | Request Entity Too Large     | [RFC7252] |
+% | 4.15 | Unsupported Content-Format   | [RFC7252] |
+% | 5.00 | Internal Server Error        | [RFC7252] |
+% | 5.01 | Not Implemented              | [RFC7252] |
+% | 5.02 | Bad Gateway                  | [RFC7252] |
+% | 5.03 | Service Unavailable          | [RFC7252] |
+% | 5.04 | Gateway Timeout              | [RFC7252] |
+% | 5.05 | Proxying Not Supported       | [RFC7252] |
+% +------+------------------------------+-----------+
+
+
+%% CoAP Content-Formats Registry
 %%
-
-%%--------------------------------------------------------------------
-%% Response Code
-%%--------------------------------------------------------------------
-
-%% Success 2.xx (5.9.1)
--define(RC_CREATED, {2, 01}).
--define(RC_DELETED, {2, 02}).
--define(RC_VALID,   {2, 03}).
--define(RC_CHANGED, {2, 04}).
--define(RC_CONTENT, {2, 05}).
-
-%% Client Error 4.xx (5.9.2)
--define(RC_BAD_REQUEST,  {4, 00}).
--define(RC_UNAUTHORIZED, {4, 01}).
-
-%%   4.02 Bad Option
-%%   4.03 Fobidden
-%%   4.04 Not Found
-%%   4.05 Method Not Allowed
-%%   4.06 Not Acceptable
-%%   4.12 Precondition Failed
-%%   4.13 Request Entity Too Large
-%%   4.15 Unsupported Content-format
-
-%% Server Error 5.xx
-%%   5.00 Internal Server Erro34 BVD
-%%   5.01 Not Implemented
-%%   5.02 Bad Gateway
-%%   5.03 Service Unavailable
-%%   5.04 Gateway Timeout
-%%   5.05 Proxying Not Supported
+%% +--------------------------+----------+----+------------------------+
+%% | Media type               | Encoding | ID | Reference              |
+%% +--------------------------+----------+----+------------------------+
+%% | text/plain;              | -        |  0 | [RFC2046] [RFC3676]    |
+%% | charset=utf-8            |          |    | [RFC5147]              |
+%% | application/link-format  | -        | 40 | [RFC6690]              |
+%% | application/xml          | -        | 41 | [RFC3023]              |
+%% | application/octet-stream | -        | 42 | [RFC2045] [RFC2046]    |
+%% | application/exi          | -        | 47 | [REC-exi-20140211]     |
+%% | application/json         | -        | 50 | [RFC7159]              |
+%% +--------------------------+----------+----+------------------------+
 
 

@@ -14,44 +14,26 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqtt_coap_server).
+-module(emqtt_coap_gateway_sup).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(gen_server).
+-behaviour(supervisor).
 
-%% API.
--export([start_link/0]).
+-export([start_link/0, start_gateway/2, init/1]).
 
-%% gen_server.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
-
--record(state, { }).
-
-%% API.
-
--spec start_link() -> {ok, pid()}.
+%% @doc Start CoAP-Gateway Supervisor.
+-spec(start_link() -> {ok, pid()}).
 start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-%% gen_server.
+%% @doc Start a CoAP Gateway
+-spec(start_gateway(inet:socket(), {inet:ip_address(), inet:port()}) -> {ok, pid()}).
+start_gateway(Sock, Peer) ->
+    supervisor:start_child(?MODULE, [Sock, Peer]).
 
 init([]) ->
-	{ok, #state{}}.
-
-handle_call(_Request, _From, State) ->
-	{reply, ignored, State}.
-
-handle_cast(_Msg, State) ->
-	{noreply, State}.
-
-handle_info(_Info, State) ->
-	{noreply, State}.
-
-terminate(_Reason, _State) ->
-	ok.
-
-code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+    {ok, {{simple_one_for_one, 0, 1},
+          [{caop_gateway, {emqtt_caop_gateway, start_link, []},
+              temporary, 5000, worker, [emqtt_caop_gateway]}]}}.
 
