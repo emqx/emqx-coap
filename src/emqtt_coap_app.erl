@@ -22,9 +22,12 @@
 
 -export([start/2, stop/1]).
 
+-define(APP, emqtt_coap).
+
 start(_Type, _Args) ->
-    {ok, Listener} = application:get_env(emqtt_coap, listener),
-	emqtt_coap_sup:start_link(Listener).
+    gen_conf:init(?APP),
+    io:format("Env: ~p~n", [application:get_all_env(?APP)]),
+	emqtt_coap_sup:start_link(gen_conf:list(?APP, listener)).
 
 stop(_State) ->
 	ok.

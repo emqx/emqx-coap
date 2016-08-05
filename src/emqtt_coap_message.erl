@@ -36,24 +36,24 @@
 
 -include("emqtt_coap.hrl").
 
--import(emqtt_coap, [type_name/1, type_enum/1, method_name/1]).
+-import(emqtt_coap_iana, [type_name/1, type_enum/1, method_name/1]).
 
--export([parse/1, serialize/1]).
+-export([parse/1, serialize/1, format/1]).
 
--define(VER, 2#01).
+-define(V, 2#01).
 
 %%--------------------------------------------------------------------
 %% Parse CoAP Message
 %%--------------------------------------------------------------------
 
 -spec(parse(binary()) -> coap_message()).
-parse(<<?VER:2, T:2, 0:4, 0:8, Id:16/big-integer>>) -> %% empty message
-    #coap_message{type = type_name(T), id = Id};
+parse(<<?V:2, T:2, 0:4, 0:8, Id:16/big-integer>>) -> %% empty message
+    #coap_message{type = type_name(T), code = {0, 0}, id = Id};
 
-parse(<<?VER:2, _T:2, 0:4, 0:8, _/binary>>) -> %% format error
+parse(<<?V:2, _T:2, 0:4, 0:8, _/binary>>) -> %% format error
     error(format_error);
 
-parse(<<?VER:2, T:2, TKL:4, C:3, Dd:5, Id:16/big-integer, Token:TKL/bytes, Bin/binary>>) ->
+parse(<<?V:2, T:2, TKL:4, C:3, Dd:5, Id:16/big-integer, Token:TKL/bytes, Bin/binary>>) ->
     {Options, Payload} = parse_option_list(Bin, 0, []),
     #coap_message{type = type_name(T), method = method_name({C, Dd}),
                   code = {C, Dd}, id = Id, token = Token,
@@ -89,6 +89,7 @@ decode_option({1, <<>>})   -> {'If-Match', true};
 decode_option({3, Host})   -> {'Uri-Host', Host};
 decode_option({4, Etag})   -> {'ETag', Etag};
 decode_option({5, <<>>})   -> {'If-None-Match', true};
+decode_option({6, Val})    -> {'Observe', binary:decode_unsigned(Val)};
 decode_option({7, Port})   -> {'Uri-Port', binary:decode_unsigned(Port)};
 decode_option({8, Path})   -> {'Location-Path', Path};
 decode_option({11, Path})  -> {'Uri-Path', Path};
@@ -116,13 +117,14 @@ decode_content_format(I)  -> I.
 %%--------------------------------------------------------------------
 
 serialize(#coap_message{type = T, code = 0, id = Id}) -> %% empty messag
-    <<?VER:2, (type_enum(T)):2, 0:4, 0:8, Id:16>>;
+    <<?V:2, (type_enum(T)):2, 0:4, 0:8, Id:16>>;
 
 serialize(#coap_message{type = Type, code = {C, Dd}, id = MsgId, token = Token,
                         options = Options, payload = Payload}) ->
-    Header = <<?VER:2, (type_enum(Type)):2, (size(Token)):4, C:3, Dd:5, MsgId:16, Token/binary>>,
+    Header = <<?V:2, (type_enum(Type)):2, (size(Token)):4, C:3, Dd:5, MsgId:16, Token/binary>>,
     EncodedOptions = lists:sort([encode_option(Option) || Option <- Options]),
-    [Header, serialize_option_list(EncodedOptions), payload_marker(Payload)].
+    {_, OptBin} = serialize_option_list(EncodedOptions),
+    [Header, OptBin, payload_marker(Payload)].
 
 payload_marker(<<>>) -> <<>>;
 payload_marker(Payload) -> [16#FF, Payload].
@@ -143,6 +145,7 @@ encode_option({'If-Match', true})        -> {1, <<>>};
 encode_option({'Uri-Host', Host})        -> {3, Host};
 encode_option({'ETag', Etag})            -> {4, Etag};
 encode_option({'If-None-Match', true})   -> {5, <<>>};
+encode_option({'Observe', Val})          -> {6, binary:encode_unsigned(Val)};
 encode_option({'Uri-Port', Port})        -> {7, binary:encode_unsigned(Port)};
 encode_option({'Location-Path', Path})   -> {8, Path};
 encode_option({'Uri-Path', Path})        -> {11, Path};
@@ -177,9 +180,16 @@ encode_extended(Delta) when Delta >= 269 -> <<(Delta - 269):16>>;
 encode_extended(Delta) when Delta >= 13  -> <<(Delta - 13):8>>;
 encode_extended(_Delta)                  -> <<>>.
 
+format(Msg = #coap_message{}) -> Msg. %% TODO:
+
 -ifdef(TEST).
 
 -include_lib("eunit/include/eunit.hrl").
+
+parse_test() ->
+    Msg = parse(<<?V:2, 0:2, 0:4, 1:8, 22096:16>>),
+    serialize(Msg),
+    ?assertEqual(22096, Msg#coap_message.id).
 
 -endif.
 

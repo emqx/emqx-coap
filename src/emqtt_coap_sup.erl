@@ -22,20 +22,23 @@
 
 -export([start_link/1, init/1]).
 
-start_link(Listener) ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, [Listener]).
+-define(CHILD(M), {M, {M, start_link, []}, permanent, 5000, worker, [M]}).
 
-init([{Port, Opts}]) ->
-    GwSup = {emqtt_coap_gateway_sup,
-              {emqtt_coap_gateway_sup, start_link, []},
-                permanent, infinity, supervisor, [emqtt_coap_gateway_sup]},
+start_link(Listeners) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [Listeners]).
 
-    UdpSrv = {emqtt_coap_udp_server,
-               {esockd_udp, server, udp_args(Port, Opts)},
-                 permanent, 5000, worker, [esockd_udp]},
+init([Listeners]) ->
+    io:format("Listeners: ~p~n", [Listeners]),
+    ChSup = {emqtt_coap_channel_sup,
+             {emqtt_coap_channel_sup, start_link, []},
+              permanent, infinity, supervisor, [emqtt_coap_channel_sup]},
+    ChMFA = {emqtt_coap_channel_sup, start_channel, []},
+    {ok, {{one_for_all, 10, 3600},
+          [ChSup, ?CHILD(emqtt_coap_observer), ?CHILD(emqtt_coap_server) |
+           [listener_child(Listener, ChMFA) || Listener <- Listeners]]}}.
 
-	{ok, {{one_for_one, 10, 3600}, [GwSup, UdpSrv]}}.
-
-udp_args(Port, Opts) ->
-    [coap, Port, Opts, {emqtt_coap_gateway_sup, start_gateway, []}].
+listener_child({listener, Name, Port, Opts}, ChMFA) ->
+    {{coap_listener, Name},
+      {esockd_udp, server, [Name, Port, Opts, ChMFA]},
+        permanent, 5000, worker, [esockd_udp]}.
 
