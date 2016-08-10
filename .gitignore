@@ -1,5 +1,5 @@
 deps/
 ebin/
-emqtt_coap.d
-.erlang.mk/
 _rel/
+.erlang.mk/
+emqttd_coap.d
