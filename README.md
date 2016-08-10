@@ -1,8 +1,8 @@
 
-emqtt_coap
-==========
+emqttd_coap
+===========
 
-Erlang CoAP Gateway
+CoAP Gateway for The EMQTT Broker
 
 License
 -------

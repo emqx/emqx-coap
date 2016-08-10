@@ -1,5 +1,5 @@
-PROJECT = emqtt_coap
-PROJECT_DESCRIPTION = Erlang CoAP Server
+PROJECT = emqttd_coap
+PROJECT_DESCRIPTION = CoAP Gateway for The EMQTT Broker
 PROJECT_VERSION = 0.2
 
 DEPS = cbor lager gen_conf esockd mochiweb
