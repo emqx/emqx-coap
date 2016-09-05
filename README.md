@@ -27,6 +27,7 @@ File: etc/emqttd_coap.conf
 
 ### simple 
 
+```erlang
 ```
 
 Load Plugin
