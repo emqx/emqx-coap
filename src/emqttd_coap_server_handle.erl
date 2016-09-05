@@ -24,10 +24,26 @@
 
 -include("emqttd_coap.hrl").
 
+-include_lib("emqttd/include/emqttd.hrl").
+
 handle_request(_Req = #coap_message{method = 'GET'}) ->
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
-handle_request(_Req = #coap_message{method = 'POST'}) ->
+handle_request(_Req = #coap_message{method = 'POST', payload = Payload}) ->
+    Params = string:tokens(binary_to_list(Payload), "&"),
+    ParamsList = lists:foldl(
+        fun(Param, AccIn) -> 
+            [Key, Value] = string:tokens(Param, "="),
+            [{Key, Value}| AccIn]
+        end, [], Params),
+    io:format("ParamsList:~p~n", [ParamsList]),
+    ClientId = proplists:get_value("client", ParamsList, coap),
+    Qos      = int(proplists:get_value("qos", ParamsList, "0")),
+    Retain   = bool(proplists:get_value("retain", ParamsList, "0")),
+    Content  = list_to_binary(proplists:get_value("message", ParamsList)),
+    Topic    = list_to_binary(proplists:get_value("topic", ParamsList)),
+    Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
+    emqttd:publish(Msg#mqtt_message{retain  = Retain}),
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
 handle_request(_Req = #coap_message{method = 'PUT', options = Options}) ->
@@ -46,3 +62,8 @@ handle_observe(_Req) ->
 
 handle_unobserve(_Req) ->
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
+
+int(S) -> list_to_integer(S).
+
+bool("0") -> false;
+bool("1") -> true.

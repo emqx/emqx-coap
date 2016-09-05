@@ -29,14 +29,14 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {sock, endpoint, resp, next_msg_id, awaiting_ack}).
+-record(state, {sock, endpoint, resp, next_msg_id, auto_reply_ack, awaiting_ack}).
 
 -define(LOG(Level, Format, Args, State),
         lager:Level("CoAP(~s): " ++ Format,
                     [esockd_net:format(State#state.endpoint) | Args])).
 
 -define(ACK_TIMEOUT, 2000).
--define(ACK_RANDOM_FACTOR, 1000). % ACK_TIMEOUT*0.5
+-define(ACK_RANDOM_FACTOR, 1000). % ACK_TIMEOUT*0.5`
 -define(MAX_RETRANSMIT, 4).
 
 -define(PROCESSING_DELAY, 1000).
@@ -56,24 +56,31 @@ init([Sock, Endpoint]) ->
     {ok, #state{sock     = Sock, 
                 endpoint = Endpoint, 
                 next_msg_id  = 0,
-                awaiting_ack = #{}}}.
+                auto_reply_ack = #{},
+                awaiting_ack   = #{}}}.
 
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
 handle_cast({send_response, Resp}, State = #state{endpoint = Endpoint, sock = Sock,
-             awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
+             auto_reply_ack = AutoReplyAck, awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
     {IpAddr, Port} = Endpoint,
     MsgId = Resp#coap_message.id,
     NextMsgId2 = next_msg_id(NextMsgId),
-    {State2, Resp2} = case maps:find(MsgId, AwaitingAck) of
+    {State2, Resp2} = case maps:find(MsgId, AutoReplyAck) of
         {ok, {_, undefined}} ->
-            {State#state{awaiting_ack = maps:remove(MsgId, AwaitingAck), 
-                         next_msg_id = NextMsgId2}, Resp#coap_message{id = NextMsgId2}};
+            Resp3 = Resp#coap_message{id = NextMsgId2},
+            random:seed(os:timestamp()),
+            Timeout = ?ACK_TIMEOUT+random:uniform(?ACK_RANDOM_FACTOR),
+            AckTimer = erlang:send_after(Timeout, self(), {awaiting_ack, Resp3}),
+            AwaitingAck2 = maps:put(NextMsgId2, {AckTimer, Timeout, 0}, AwaitingAck),
+            
+            {State#state{auto_reply_ack = maps:remove(MsgId, AutoReplyAck), 
+                         awaiting_ack = AwaitingAck2,
+                         next_msg_id = NextMsgId2}, Resp3};
         {ok, {_, Timer}} ->
             erlang:cancel_timer(Timer),
-            {State#state{awaiting_ack = maps:remove(MsgId, AwaitingAck), 
-                         next_msg_id = NextMsgId2}, Resp#coap_message{type = 'ACK'}};
+            {State#state{auto_reply_ack = maps:remove(MsgId, AutoReplyAck)}, Resp#coap_message{type = 'ACK'}};
         _ ->
             {State#state{next_msg_id = NextMsgId2}, Resp#coap_message{id = NextMsgId2}}    
     end,
@@ -90,16 +97,33 @@ handle_info({datagram, _From, Packet}, State) ->
     ?LOG(info, "RECV ~p", [emqttd_coap_message:format(Msg)], State),
     handle_message(Msg, State);
 
-handle_info({ack, AckMsg = #coap_message{id = MsgId}, Token}, State = #state{
-             endpoint = Endpoint, sock = Sock, awaiting_ack = AwaitingAck}) ->
+handle_info({awaiting_ack, RespMsg = #coap_message{id = MsgId}}, 
+             State = #state{endpoint = Endpoint, sock = Sock, awaiting_ack = AwaitingAck})->
+    {IpAddr, Port} = Endpoint,
+    case maps:find(MsgId, AwaitingAck) of
+        {ok, {_, Timeout, RetryCount}} when RetryCount < 4 ->
+            Timeout2 = Timeout * 2,
+            AckTimer = erlang:send_after(Timeout2, self(), {awaiting_ack, RespMsg}),
+            AwaitingAck2 = maps:put(MsgId, {AckTimer, Timeout2, RetryCount+1}, AwaitingAck),
+            ?LOG(info, "SEND ~p", [emqttd_coap_message:format(RespMsg)], State),
+            gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(RespMsg)),
+            {noreply, State#state{awaiting_ack = AwaitingAck2}};
+        {ok, {_, _, _}} ->
+            {stop, normal, State};
+        _ ->
+            {noreply, State}
+    end;
+
+handle_info({auto_reply_ack, AckMsg = #coap_message{id = MsgId}, Token}, State = #state{
+             endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck}) ->
     {IpAddr, Port} = Endpoint,
     ?LOG(info, "SEND ~p", [emqttd_coap_message:format(AckMsg)], State),
     gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(AckMsg)),
-    AwaitingAck2 = maps:put(MsgId, {Token, undefined}, AwaitingAck),
-    {noreply, State#state{awaiting_ack = AwaitingAck2}};
+    AutoReplyAck2 = maps:put(MsgId, {Token, undefined}, AutoReplyAck),
+    {noreply, State#state{auto_reply_ack = AutoReplyAck2}};
 
-handle_info({_, timeout}, State) ->
-    {noreply, State};
+% handle_info({_, timeout}, State) ->
+%     {noreply, State};
 
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -114,27 +138,33 @@ handle_message(Msg = #coap_message{type = Type}, State) ->
     {noreply, idle(Type, Msg, State)}.
 
 idle('CON', Msg, State) ->
-    erlang:send_after(?EXCHANGE_LIFETIME, self(), {con_req, timeout}),
+    % erlang:send_after(?EXCHANGE_LIFETIME, self(), {con_req, timeout}),
     handle_con_req(Msg, State);
 
 idle('NON', Msg, State) ->
-    erlang:send_after(?NON_LIFETIME, self(), {non_req, timeout}),
+    % erlang:send_after(?NON_LIFETIME, self(), {non_req, timeout}),
     handle_non_req(Msg, State);
 
-idle('ACK', _Msg, State) ->
-    State.
-
+idle('ACK', #coap_message{id = MsgId}, State = #state{awaiting_ack = AwaitingAck}) ->
+    case maps:find(MsgId, AwaitingAck) of
+        {ok, {Timer, _, _}} ->
+            erlang:cancel_timer(Timer),
+            State#state{awaiting_ack = maps:remove(MsgId, AwaitingAck)};
+        _ ->
+            State
+    end.
+    
 handle_con_req(Req = #coap_message{method = Mothod, token = Token, id = MsgId}, 
-               State = #state{awaiting_ack = AwaitingAck}) ->
+               State = #state{auto_reply_ack = AutoReplyAck}) ->
     case Mothod of
         undefined ->
             send_res_msg(Req, State);
         _ ->
             AckMsg = #coap_message{type = 'ACK', id = Req#coap_message.id},
-            Timer = erlang:send_after(?PROCESSING_DELAY, self(), {ack, AckMsg, Token}),
-            AwaitingAck2 = maps:put(MsgId, {Token, Timer}, AwaitingAck),
+            Timer = erlang:send_after(?PROCESSING_DELAY, self(), {auto_reply_ack, AckMsg, Token}),
+            AutoReplyAck2 = maps:put(MsgId, {Token, Timer}, AutoReplyAck),
             handle_response(Req, State),
-            State#state{awaiting_ack = AwaitingAck2} 
+            State#state{auto_reply_ack = AutoReplyAck2} 
     end.
 
 handle_non_req(Req, State) ->
@@ -150,6 +180,7 @@ send_res_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
 
 handle_response(Req = #coap_message{options = Options}, 
                 State = #state{sock = Sock, endpoint = Endpoint}) ->
+    %timer:sleep(1500),
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
     case emqttd_coap_response:get_responder(self(), binary_to_list(Uri), Endpoint) of
         {ok, Pid} ->

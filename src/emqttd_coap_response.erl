@@ -44,6 +44,7 @@ start_link(Channel, Uri, Endpoint) ->
     gen_server:start_link({local, name(Uri, Endpoint)}, ?MODULE, [Channel, Uri], []).
 
 init([Channel, Uri]) ->
+    erlang:monitor(process, Channel),
     case emqttd_coap_server:match_handler(Uri) of
        {ok, Handler} -> {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0, channel = Channel}};
        undefined     -> {stop, 'NotFound'}
@@ -68,6 +69,13 @@ handle_info({notify, Msg}, State = #state{ob_state = 1}) ->
 handle_info({notify, Msg}, State = #state{ob_state = 0}) ->
     io:format("ob_state is closed, Msg:~p~n", [Msg]),
     {noreply, State, hibernate};
+
+handle_info({'DOWN', _, _, _, _}, State = #state{ob_state = Observe, uri = Uri}) ->
+    case Observe of
+        1 -> emqttd_coap_observer:unobserve(Uri);
+        _ -> ok
+    end,
+    {stop, normal, State};
 
 handle_info(_Info, State) ->
     io:format("_Info Msg:~p~n", [_Info]),
