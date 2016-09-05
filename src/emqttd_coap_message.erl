@@ -36,7 +36,7 @@
 
 -include("emqttd_coap.hrl").
 
--import(emqttd_coap_iana, [type_name/1, type_enum/1, method_name/1]).
+-import(emqttd_coap_iana, [type_name/1, type_enum/1, method_name/1, resp_method_name/1, resp_method_code/1]).
 
 -export([parse/1, serialize/1, format/1]).
 
@@ -119,8 +119,9 @@ decode_content_format(I)  -> I.
 serialize(#coap_message{type = T, code = 0, id = Id}) -> %% empty messag
     <<?V:2, (type_enum(T)):2, 0:4, 0:8, Id:16>>;
 
-serialize(#coap_message{type = Type, code = {C, Dd}, id = MsgId, token = Token,
+serialize(#coap_message{type = Type, code = Code, id = MsgId, token = Token,
                         options = Options, payload = Payload}) ->
+    {C, Dd} = resp_method_code(Code),
     Header = <<?V:2, (type_enum(Type)):2, (size(Token)):4, C:3, Dd:5, MsgId:16, Token/binary>>,
     EncodedOptions = lists:sort([encode_option(Option) || Option <- Options]),
     {_, OptBin} = serialize_option_list(EncodedOptions),
