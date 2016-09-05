@@ -31,9 +31,13 @@ File: etc/emqttd_coap.conf
 implemented behaviour emqttd_coap_handler function
 
 handle_request(#coap_message{method = 'GET'}) ->
+    % do publish
+    % emqttd:publish(Topic, Msg),
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
 handle_request(#coap_message{method = 'POST'}) ->
+    % do publish
+    % emqttd:publish(Topic, Msg),
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
 handle_request(#coap_message{method = 'PUT'}) ->
@@ -43,9 +47,13 @@ handle_request(#coap_message{method = 'DELETE'}) ->
     {ok, #coap_response{code = 'Deleted', payload = <<"handle_request DELETE">>}}.
 
 handle_observe(#coap_message{}) ->
+    % do subscribe
+    % emqttd:subscribe(Topic),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
 
 handle_unobserve(#coap_message{}) ->
+    % do unsubscribe
+    % emqttd:unsubscribe(Topic),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
 
 ```
