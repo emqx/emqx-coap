@@ -27,6 +27,8 @@ File: etc/emqttd_coap.conf
 
 ### simple 
 
+emqttd_coap_gateway.erl
+
 ```erlang
 implemented behaviour emqttd_coap_handler function
 
