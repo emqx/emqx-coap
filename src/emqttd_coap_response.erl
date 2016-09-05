@@ -34,21 +34,22 @@
          terminate/2, code_change/3]).
 
 get_responder(Channel, Uri, Endpoint) ->
-    case start_link(Channel, Uri, Endpoint) of
-        {ok, Pid} -> {ok, Pid};
-        {error, {already_started, Pid}} -> {ok, Pid};
-        {error, Other} -> {error, Other}
-    end.
-
-start_link(Channel, Uri, Endpoint) ->
-    gen_server:start_link({local, name(Uri, Endpoint)}, ?MODULE, [Channel, Uri], []).
-
-init([Channel, Uri]) ->
-    erlang:monitor(process, Channel),
     case emqttd_coap_server:match_handler(Uri) of
-       {ok, Handler} -> {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0, channel = Channel}};
-       undefined     -> {stop, 'NotFound'}
+        {ok, Handler} ->
+            case start_link(Channel, Uri, Endpoint, Handler) of
+                {ok, Pid} -> {ok, Pid};
+                {error, {already_started, Pid}} -> {ok, Pid};
+                {error, Other} -> {error, Other}
+            end;
+       undefined  -> {error, 'NotFound'}
     end.
+
+start_link(Channel, Uri, Endpoint, Handler) ->
+    gen_server:start_link({local, name(Uri, Endpoint)}, ?MODULE, [Channel, Uri, Handler], []).
+
+init([Channel, Uri, Handler]) ->
+    erlang:monitor(process, Channel),
+    {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0, channel = Channel}}.
 
 handle_call(_Msg, _From, State) ->
     {reply, ignored, State}.
@@ -57,7 +58,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({coap_req, Request}, State) ->
-    call_handler(Request, State);
+    handle_method(Request, State);
 
 handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 1}) ->
     io:format("Topic:~p , Msg:~p~n", [Topic, Msg]),
@@ -109,32 +110,31 @@ code_change(_OldVsn, State, _Extra) ->
 
 % gen_payload(#coap_message{payload = Payload}, {_Num, false, _Size}, State) ->
 %     {ok, <<Payload/binary>>, State}.
+% check_cond(Req, Resp, State) ->
+%     case if_match(Req, Resp) of
+%         true  -> handle_method(Req, Resp, State);
+%         false -> return_response(Req, 'PreconditionFailed', State)
+%     end. 
 
-call_handler(Req, State = #state{handler = Handler}) ->
-    case Handler:handle_request(Req) of
-        {ok, Resp = #coap_response{}} -> check_cond(Req, Resp, State);
-        {error, Code} -> return_response(Req, Code, State)
-    end.
+% if_match(_Req, _Resp) ->
+%     true.
 
-check_cond(Req, Resp, State) ->
-    case if_match(Req, Resp) of
-        true  -> handle_method(Req, Resp, State);
-        false -> return_response(Req, 'PreconditionFailed', State)
-    end. 
-
-if_match(_Req, _Resp) ->
-    true.
-
-handle_method(Req = #coap_message{method = Method, options=Options}, Resp, State) when is_atom(Method) ->
+handle_method(Req = #coap_message{method = Method, options=Options}, State) when is_atom(Method) ->
     case proplists:get_value('Observe', Options) of
         0 -> call_observe(Req, State);
         1 -> call_unobserve(Req, State);
-        undefined -> return_response(Req, Resp, State);
+        undefined -> call_handler(Req, State);
         _ -> return_response(Req, 'BadOption', State)
     end;
 
-handle_method(Req, _Resp, State) ->
+handle_method(Req, State) ->
     return_response(Req, 'MethodNotAllowed', State).
+
+call_handler(Req, State = #state{handler = Handler}) ->
+    case Handler:handle_request(Req) of
+        {ok, Resp}    -> return_response(Req, Resp, State);
+        {error, Code} -> return_response(Req, Code, State)
+    end.
 
 call_observe(Req = #coap_message{options = Options}, State = #state{handler = Handler, ob_seq = ObSeq}) ->
     Uri = proplists:get_value('Uri-Path', Options, <<>>),

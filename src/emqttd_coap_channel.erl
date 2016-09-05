@@ -53,17 +53,18 @@ start_link(Sock, Endpoint) ->
 
 %% gen_server.
 init([Sock, Endpoint]) ->
-    {ok, #state{sock     = Sock, 
-                endpoint = Endpoint, 
-                next_msg_id  = 0,
+    {ok, #state{sock           = Sock, 
+                endpoint       = Endpoint, 
+                next_msg_id    = 0,
                 auto_reply_ack = #{},
                 awaiting_ack   = #{}}}.
 
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
-handle_cast({send_response, Resp}, State = #state{endpoint = Endpoint, sock = Sock,
-             auto_reply_ack = AutoReplyAck, awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
+handle_cast({send_response, Resp}, State = #state{
+             endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck, 
+             awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
     {IpAddr, Port} = Endpoint,
     MsgId = Resp#coap_message.id,
     NextMsgId2 = next_msg_id(NextMsgId),
@@ -163,13 +164,11 @@ handle_con_req(Req = #coap_message{method = Mothod, token = Token, id = MsgId},
             AckMsg = #coap_message{type = 'ACK', id = Req#coap_message.id},
             Timer = erlang:send_after(?PROCESSING_DELAY, self(), {auto_reply_ack, AckMsg, Token}),
             AutoReplyAck2 = maps:put(MsgId, {Token, Timer}, AutoReplyAck),
-            handle_response(Req, State),
-            State#state{auto_reply_ack = AutoReplyAck2} 
+            handle_response(Req, State#state{auto_reply_ack = AutoReplyAck2})
     end.
 
 handle_non_req(Req, State) ->
-    handle_response(Req, State),
-    State.
+    handle_response(Req, State).
     
 send_res_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
     {IpAddr, Port} = Endpoint,
@@ -179,17 +178,24 @@ send_res_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
     State.
 
 handle_response(Req = #coap_message{options = Options}, 
-                State = #state{sock = Sock, endpoint = Endpoint}) ->
-    %timer:sleep(1500),
+                State = #state{sock = Sock, endpoint = Endpoint, auto_reply_ack = AutoReplyAck}) ->
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
+    MsgId = Req#coap_message.id,
     case emqttd_coap_response:get_responder(self(), binary_to_list(Uri), Endpoint) of
         {ok, Pid} ->
-            Pid ! {coap_req, Req};
+            Pid ! {coap_req, Req},
+            State;
         {error, Code} ->
-            Resp = #coap_message{code = Code, id = Req#coap_message.id},
+            Resp = #coap_message{type = 'ACK', code = Code, id = MsgId},
             {IpAddr, Port} = Endpoint,
             ?LOG(info, "SEND ~p", [emqttd_coap_message:format(Resp)], State),
-            gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(Resp))
+            gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(Resp)),
+            case maps:find(MsgId, AutoReplyAck) of
+                {ok, { _, undefined}} -> ok;
+                {ok, { _, Timer}}     -> erlang:cancel_timer(Timer);
+                _                     -> ok
+            end,
+            State#state{auto_reply_ack = maps:remove(MsgId, AutoReplyAck)}
     end.
 
 next_msg_id(Msgid) when Msgid =:= 65535 ->

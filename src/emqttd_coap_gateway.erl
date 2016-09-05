@@ -26,44 +26,68 @@
 
 -include_lib("emqttd/include/emqttd.hrl").
 
-handle_request(_Req = #coap_message{method = 'GET'}) ->
+handle_request(#coap_message{method = 'GET', options = Options, payload = Payload}) ->
+    UriQuery = binary_to_list(proplists:get_value('Uri-Query', Options, <<>>)),
+    case proplists:get_value("type", UriQuery, undefined) of
+        "sub" -> subscribe(Payload);
+        "pub" -> publish(Payload);
+        _     -> ok
+    end,
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
-handle_request(_Req = #coap_message{method = 'POST', payload = Payload}) ->
-    Params = string:tokens(binary_to_list(Payload), "&"),
-    ParamsList = lists:foldl(
-        fun(Param, AccIn) -> 
-            [Key, Value] = string:tokens(Param, "="),
-            [{Key, Value}| AccIn]
-        end, [], Params),
-    io:format("ParamsList:~p~n", [ParamsList]),
-    ClientId = proplists:get_value("client", ParamsList, coap),
-    Qos      = int(proplists:get_value("qos", ParamsList, "0")),
-    Retain   = bool(proplists:get_value("retain", ParamsList, "0")),
-    Content  = list_to_binary(proplists:get_value("message", ParamsList, "")),
-    Topic    = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
-    emqttd:publish(Msg#mqtt_message{retain  = Retain}),
+handle_request(#coap_message{method = 'POST', options = Options, payload = Payload}) ->
+    UriQuery = binary_to_list(proplists:get_value('Uri-Query', Options, <<>>)),
+    case proplists:get_value("type", UriQuery, undefined) of
+        "sub" -> subscribe(Payload);
+        "pub" -> publish(Payload);
+        _     -> ok
+    end,
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
-handle_request(_Req = #coap_message{method = 'PUT', options = Options}) ->
-    Uri = proplists:get_value('Uri-Path', Options, <<>>),
-    emqttd_coap_observer:notify(binary_to_list(Uri), <<"handle_request_put">>),
+handle_request(_Req = #coap_message{method = 'PUT'}) ->
     {ok, #coap_response{code = 'Changed', payload = <<"handle_request PUT">>}};
 
-handle_request(_Req = #coap_message{method = 'DELETE', options = Options}) ->
-    Uri = proplists:get_value('Uri-Path', Options, <<>>),
-    emqttd_coap_observer:notify(binary_to_list(Uri), <<"handle_request_delete">>),
+handle_request(_Req = #coap_message{method = 'DELETE'}) ->
     {ok, #coap_response{code = 'Deleted', payload = <<"handle_request DELETE">>}}.
 
-handle_observe(_Req) ->
-    emqttd:subscribe("coap_topic"),
+handle_observe(#coap_message{payload = Payload}) ->
+    subscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
 
-handle_unobserve(_Req) ->
+handle_unobserve(#coap_message{payload = Payload}) ->
+    unsubscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
 
 int(S) -> list_to_integer(S).
 
 bool("0") -> false;
 bool("1") -> true.
+
+parse_params(Payload) ->
+    Params = string:tokens(binary_to_list(Payload), "&"),
+    lists:foldl(
+        fun(Param, AccIn) -> 
+            [Key, Value] = string:tokens(Param, "="),
+            [{Key, Value}| AccIn]
+        end, [], Params).
+
+publish(Payload) when Payload =:= <<>> ->
+    ParamsList = parse_params(Payload),
+    ClientId = proplists:get_value("client", ParamsList, coap),
+    Qos      = int(proplists:get_value("qos", ParamsList, "0")),
+    Retain   = bool(proplists:get_value("retain", ParamsList, "0")),
+    Content  = list_to_binary(proplists:get_value("message", ParamsList, "")),
+    Topic    = list_to_binary(proplists:get_value("topic", ParamsList, "")),
+    Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
+    emqttd:publish(Msg#mqtt_message{retain  = Retain}).
+
+subscribe(Payload) when Payload =:= <<>> ->
+    ParamsList = parse_params(Payload),
+    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
+    emqttd:unsubscribe(Topic).
+
+unsubscribe(Payload) when Payload =:= <<>> ->
+    ParamsList = parse_params(Payload),
+    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
+    emqttd:unsubscribe(Topic).
+
