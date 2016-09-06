@@ -153,7 +153,10 @@ idle('ACK', #coap_message{id = MsgId}, State = #state{awaiting_ack = AwaitingAck
             State#state{awaiting_ack = maps:remove(MsgId, AwaitingAck)};
         _ ->
             State
-    end.
+    end;
+
+idle('RST', #coap_message{}, State) ->
+    State.
     
 handle_con_req(Req = #coap_message{method = Mothod, token = Token, id = MsgId}, 
                State = #state{auto_reply_ack = AutoReplyAck}) ->

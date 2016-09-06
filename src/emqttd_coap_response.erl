@@ -182,7 +182,7 @@ return_response(Req, Resp, State = #state{channel = Channel}, Options) ->
     emqttd_coap_channel:send_response(Channel, Resp2),
     {noreply, State}.
 
-next_ob_seq(ObSeq) when ObSeq =:= 65535 ->
+next_ob_seq(ObSeq) when ObSeq =:= 4095 ->
     1;
 next_ob_seq(ObSeq) ->
     ObSeq + 1.
