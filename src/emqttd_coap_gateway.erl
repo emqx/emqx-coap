@@ -26,14 +26,14 @@
 
 -include_lib("emqttd/include/emqttd.hrl").
 
-handle_request(#coap_message{method = 'GET', options = Options, payload = Payload}) ->
+handle_request(#coap_message{method = 'GET', payload = Payload}) ->
     %UriQuery = parse_params(proplists:get_value('Uri-Query', Options, <<>>)),
-    publish(Payload);
+    publish(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
-handle_request(#coap_message{method = 'POST', options = Options, payload = Payload}) ->
+handle_request(#coap_message{method = 'POST', payload = Payload}) ->
     %UriQuery = parse_params(proplists:get_value('Uri-Query', Options, <<>>)),
-    publish(Payload);
+    publish(Payload),
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
 handle_request(_Req = #coap_message{method = 'PUT'}) ->
