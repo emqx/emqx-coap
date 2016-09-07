@@ -171,15 +171,22 @@ return_response(Req, Code, State = #state{channel = Channel}) when is_atom(Code)
 return_response(Req, Resp, State) ->
     return_response(Req, Resp, State, []).
 
-return_response(Req, Resp, State = #state{channel = Channel}, Options) ->
-    Resp2 = #coap_message{
-        type    = Req#coap_message.type,
-        code    = Resp#coap_response.code, 
-        id      = Req#coap_message.id, 
-        token   = Req#coap_message.token,
-        options = Options,
-        payload = Resp#coap_response.payload},
-    emqttd_coap_channel:send_response(Channel, Resp2),
+return_response(Req = #coap_message{options = Options}, 
+                Resp = #coap_response{etag = ETag}, 
+                State = #state{channel = Channel}, Options) ->
+    Resp2 = case lists:member(ETag, proplists:get_value(etag, Options, [])) of
+        true ->
+            #coap_message{code = 'Valid', options = [{'ETag', ETag} | Options]};
+        false ->
+            #coap_message{code = Resp#coap_response.code, options = Options}
+    end,
+    Resp3 = Resp2#coap_message{
+                type    = Req#coap_message.type,
+                id      = Req#coap_message.id, 
+                token   = Req#coap_message.token,
+                payload = Resp#coap_response.payload},
+    
+    emqttd_coap_channel:send_response(Channel, Resp3),
     {noreply, State}.
 
 next_ob_seq(ObSeq) when ObSeq =:= 4095 ->

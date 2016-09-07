@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {sock, endpoint, resp, next_msg_id, auto_reply_ack, awaiting_ack}).
+-record(state, {sock, endpoint, next_msg_id, auto_reply_ack, awaiting_ack}).
 
 -define(LOG(Level, Format, Args, State),
         lager:Level("CoAP(~s): " ++ Format,
