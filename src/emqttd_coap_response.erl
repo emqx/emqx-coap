@@ -122,7 +122,8 @@ call_handler(Req, State = #state{handler = Handler}) ->
         {error, Code} -> return_response(Req, Code, State)
     end.
 
-call_observe(Req = #coap_message{options = Options}, State = #state{handler = Handler, ob_seq = ObSeq}) ->
+call_observe(Req = #coap_message{options = Options}, 
+             State = #state{handler = Handler, ob_seq = ObSeq, ob_state = Observe}) when Observe =:= 0->
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
     case Handler:handle_observe(Req) of
         {error, Code} -> return_response(Req, Code, State);
@@ -132,16 +133,22 @@ call_observe(Req = #coap_message{options = Options}, State = #state{handler = Ha
             Resp = #coap_response{code = 'Content', payload = Req#coap_message.payload},
             return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
             {noreply, State#state{ob_state = 1, token = Req#coap_message.token, ob_seq = NextObSeq}}
-    end.
+    end;
+call_observe(Req, State) ->
+    return_response(Req, 'Content', State).
 
-call_unobserve(Req = #coap_message{options = Options}, State = #state{handler = Handler}) ->
+call_unobserve(Req = #coap_message{options = Options}, 
+               State = #state{handler = Handler, ob_state = Observe}) when Observe =:= 1 ->
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
     case Handler:handle_unobserve(Req) of
         {error, Code} -> return_response(Req, Code, State);
         _Resp         -> 
             ok = emqttd_coap_observer:unobserve(binary_to_list(Uri)),
             {noreply, State#state{ob_state = 0, token = undefined}}
-    end.
+    end;
+
+call_unobserve(Req, State) ->
+    return_response(Req, 'Content', State).
 
 observe_notify(Msg, State = #state{token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
