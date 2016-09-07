@@ -27,21 +27,13 @@
 -include_lib("emqttd/include/emqttd.hrl").
 
 handle_request(#coap_message{method = 'GET', options = Options, payload = Payload}) ->
-    UriQuery = binary_to_list(proplists:get_value('Uri-Query', Options, <<>>)),
-    case proplists:get_value("type", UriQuery, undefined) of
-        "sub" -> subscribe(Payload);
-        "pub" -> publish(Payload);
-        _     -> ok
-    end,
+    %UriQuery = parse_params(proplists:get_value('Uri-Query', Options, <<>>)),
+    publish(Payload);
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
 handle_request(#coap_message{method = 'POST', options = Options, payload = Payload}) ->
-    UriQuery = binary_to_list(proplists:get_value('Uri-Query', Options, <<>>)),
-    case proplists:get_value("type", UriQuery, undefined) of
-        "sub" -> subscribe(Payload);
-        "pub" -> publish(Payload);
-        _     -> ok
-    end,
+    %UriQuery = parse_params(proplists:get_value('Uri-Query', Options, <<>>)),
+    publish(Payload);
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
 handle_request(_Req = #coap_message{method = 'PUT'}) ->
@@ -72,6 +64,8 @@ parse_params(Payload) ->
         end, [], Params).
 
 publish(Payload) when Payload =:= <<>> ->
+    ok;
+publish(Payload)->
     ParamsList = parse_params(Payload),
     ClientId = proplists:get_value("client", ParamsList, coap),
     Qos      = int(proplists:get_value("qos", ParamsList, "0")),
@@ -82,10 +76,14 @@ publish(Payload) when Payload =:= <<>> ->
     emqttd:publish(Msg#mqtt_message{retain  = Retain}).
 
 subscribe(Payload) when Payload =:= <<>> ->
+    ok;
+subscribe(Payload) when Payload =:= <<>> ->
     ParamsList = parse_params(Payload),
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
     emqttd:unsubscribe(Topic).
 
+unsubscribe(Payload) when Payload =:= <<>> ->
+    ok;
 unsubscribe(Payload) when Payload =:= <<>> ->
     ParamsList = parse_params(Payload),
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
