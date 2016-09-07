@@ -88,36 +88,18 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-% handle(Req = #coap_message{options=Options}, State) ->
-%     Block1 = proplists:get_value('Block1', Options),
-%     case gen_payload(Req, Block1, State) of
-%         {error, Code} ->
-%             return_response(Req, Code, State);
-%         {Code, State2} ->
-%             return_response(Req, Code, State2);
-%         {ok, Payload, State2} ->
-%             check_hanler(Req#coap_message{payload = Payload}, State2)
-%     end.
+if_match(#coap_message{options = Options}, #coap_response{etag = ETag}) ->
+    case proplists:get_value('If-Match', Options, undefined) of
+        undefined -> true;
+        ETag1 -> ETag1 =:= ETag
+    end;
+if_match(#coap_message{options = Options}, _) ->
+    not proplists:is_defined('If-Match', Options).
 
-% gen_payload(#coap_message{payload = Payload}, undefined, State) ->
-%     {ok, Payload, State};
-
-% gen_payload(#coap_message{payload = Payload}, {_Num, true, Size}, State) ->
-%     case byte_size(Payload) of
-%         Size -> {'Continue', State};
-%         _Else -> {error, 'BadRequest'}
-%     end;
-
-% gen_payload(#coap_message{payload = Payload}, {_Num, false, _Size}, State) ->
-%     {ok, <<Payload/binary>>, State}.
-% check_cond(Req, Resp, State) ->
-%     case if_match(Req, Resp) of
-%         true  -> handle_method(Req, Resp, State);
-%         false -> return_response(Req, 'PreconditionFailed', State)
-%     end. 
-
-% if_match(_Req, _Resp) ->
-%     true.
+if_none_match(#coap_message{options = Options}, #coap_response{}) ->
+    not proplists:is_defined('If-None-Match', Options);
+if_none_match(#coap_message{}, _) ->
+    true.
 
 handle_method(Req = #coap_message{method = Method, options=Options}, State) when is_atom(Method) ->
     case proplists:get_value('Observe', Options) of
@@ -132,7 +114,11 @@ handle_method(Req, State) ->
 
 call_handler(Req, State = #state{handler = Handler}) ->
     case Handler:handle_request(Req) of
-        {ok, Resp}    -> return_response(Req, Resp, State);
+        {ok, Resp}    -> 
+            case if_match(Req, Resp) and if_none_match(Req, Resp) of
+                true  -> return_response(Req, Resp, State);
+                false -> return_response(Req, 'PreconditionFailed', State)
+            end;
         {error, Code} -> return_response(Req, Code, State)
     end.
 
@@ -173,12 +159,12 @@ return_response(Req, Resp, State) ->
 
 return_response(Req = #coap_message{options = Options}, 
                 Resp = #coap_response{etag = ETag}, 
-                State = #state{channel = Channel}, Options) ->
+                State = #state{channel = Channel}, OptionsList) ->
     Resp2 = case lists:member(ETag, proplists:get_value(etag, Options, [])) of
         true ->
-            #coap_message{code = 'Valid', options = [{'ETag', ETag} | Options]};
+            #coap_message{code = 'Valid', options = [{'ETag', ETag} | OptionsList]};
         false ->
-            #coap_message{code = Resp#coap_response.code, options = Options}
+            #coap_message{code = Resp#coap_response.code, options = OptionsList}
     end,
     Resp3 = Resp2#coap_message{
                 type    = Req#coap_message.type,

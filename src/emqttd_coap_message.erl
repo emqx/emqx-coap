@@ -85,7 +85,7 @@ parse_option({14, <<Len:16/big-integer, Bin/binary>>}, OptNum, Options) ->
 add_option(OptNum, OptVal, Options) ->
     [decode_option({OptNum, OptVal}) | Options].
 
-decode_option({1, <<>>})   -> {'If-Match', true};
+decode_option({1, Val})   -> {'If-Match', Val};
 decode_option({3, Host})   -> {'Uri-Host', Host};
 decode_option({4, Etag})   -> {'ETag', Etag};
 decode_option({5, <<>>})   -> {'If-None-Match', true};
@@ -142,7 +142,7 @@ serialize_option(OptNum, OptVal, LastNum) ->
       (encode_extended(Delta))/bytes, (encode_extended(Len))/bytes,
       OptVal/binary>>.
 
-encode_option({'If-Match', true})        -> {1, <<>>};
+encode_option({'If-Match', Val})         -> {1, Val};
 encode_option({'Uri-Host', Host})        -> {3, Host};
 encode_option({'ETag', Etag})            -> {4, Etag};
 encode_option({'If-None-Match', true})   -> {5, <<>>};
