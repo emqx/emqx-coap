@@ -34,12 +34,12 @@ implemented behaviour emqttd_coap_handler function
 
 handle_request(#coap_message{method = 'GET', payload = Payload}) ->
     % do publish
-    emqttd:publish(Payload),
+    publish(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
 handle_request(#coap_message{method = 'POST', payload = Payload}) ->
     % do publish
-    emqttd:publish(Payload),
+    publish(Payload),
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
 handle_request(#coap_message{method = 'PUT'}) ->
@@ -50,13 +50,34 @@ handle_request(#coap_message{method = 'DELETE'}) ->
 
 handle_observe(#coap_message{payload = Payload}) ->
     % do subscribe
-    emqttd:subscribe(Payload),
+    subscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
 
 handle_unobserve(#coap_message{payload = Payload}) ->
     % do unsubscribe
-    emqttd:unsubscribe(Payload),
+    unsubscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
+
+
+publish(Payload)->
+    ParamsList = parse_params(Payload),
+    ClientId = proplists:get_value("client", ParamsList, coap),
+    Qos      = int(proplists:get_value("qos", ParamsList, "0")),
+    Retain   = bool(proplists:get_value("retain", ParamsList, "0")),
+    Content  = list_to_binary(proplists:get_value("message", ParamsList, "")),
+    Topic    = list_to_binary(proplists:get_value("topic", ParamsList, "")),
+    Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
+    emqttd:publish(Msg#mqtt_message{retain  = Retain}).
+
+subscribe(Payload) when Payload =:= <<>> ->
+    ParamsList = parse_params(Payload),
+    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
+    emqttd:unsubscribe(Topic).
+
+unsubscribe(Payload) when Payload =:= <<>> ->
+    ParamsList = parse_params(Payload),
+    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
+    emqttd:unsubscribe(Topic).
 
 ```
 
