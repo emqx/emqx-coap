@@ -20,19 +20,17 @@
 
 -behaviour(emqttd_coap_handler).
 %% API.
--export([handle_request/1, handle_observe/1, handle_unobserve/1]).
+-export([handle_request/1, handle_observe/1, handle_unobserve/1, handle_info/2]).
 
 -include("emqttd_coap.hrl").
 
 -include_lib("emqttd/include/emqttd.hrl").
 
 handle_request(#coap_message{method = 'GET', payload = Payload}) ->
-    %UriQuery = parse_params(proplists:get_value('Uri-Query', Options, <<>>)),
     publish(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
 handle_request(#coap_message{method = 'POST', payload = Payload}) ->
-    %UriQuery = parse_params(proplists:get_value('Uri-Query', Options, <<>>)),
     publish(Payload),
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
@@ -49,6 +47,11 @@ handle_observe(#coap_message{payload = Payload}) ->
 handle_unobserve(#coap_message{payload = Payload}) ->
     unsubscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
+
+handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
+    Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
+    io:format("Topic:~p, Msg:~p~n", [Topic, Msg]),
+    {ok, #coap_response{payload = Payload2}}.
 
 int(S) -> list_to_integer(S).
 

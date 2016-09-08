@@ -31,12 +31,15 @@
 -callback(handle_unobserve(coap_request()) ->
           {ok, coap_response()} | {error, coap_code()}).
 
+-callback(handle_info(iodata(), any()) ->
+          {ok, coap_response()} | ok).
+
 -else.
 
 -export([behaviour_info/1]).
 
 behaviour_info(callbacks) ->
-    [{handle_request, 1}, {handle_observe, 1}, {handle_unobserve, 1}];
+    [{handle_request, 1}, {handle_observe, 1}, {handle_unobserve, 1}, {handle_info, 2}];
 behaviour_info(_Other) ->
     undefined.
 

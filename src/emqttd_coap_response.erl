@@ -22,8 +22,6 @@
 
 -include("emqttd_coap.hrl").
 
--include_lib("emqttd/include/emqttd.hrl").
-
 -record(state, {uri, handler, ob_state, ob_seq, token, channel}).
 
 %% API.
@@ -62,7 +60,7 @@ handle_info({coap_req, Request}, State) ->
 
 handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 1}) ->
     io:format("Topic:~p , Msg:~p~n", [Topic, Msg]),
-    observe_notify(Msg#mqtt_message.payload, State);
+    call_handle_info(Topic, Msg, State);
 
 handle_info({notify, Msg}, State = #state{ob_state = 1}) -> 
     observe_notify(Msg, State);
@@ -127,14 +125,16 @@ call_observe(Req = #coap_message{options = Options},
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
     case Handler:handle_observe(Req) of
         {error, Code} -> return_response(Req, Code, State);
-        _Resp         -> 
+        {ok, _Resp}    -> 
             NextObSeq = next_ob_seq(ObSeq),
             ok = emqttd_coap_observer:observe(binary_to_list(Uri)),
             Resp = #coap_response{code = 'Content', payload = Req#coap_message.payload},
             return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
             {noreply, State#state{ob_state = 1, token = Req#coap_message.token, ob_seq = NextObSeq}}
     end;
-call_observe(Req, State) ->
+
+call_observe(Req, State = #state{handler = Handler}) ->
+    Handler:handle_observe(Req),
     return_response(Req, 'Content', State).
 
 call_unobserve(Req = #coap_message{options = Options}, 
@@ -142,13 +142,27 @@ call_unobserve(Req = #coap_message{options = Options},
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
     case Handler:handle_unobserve(Req) of
         {error, Code} -> return_response(Req, Code, State);
-        _Resp         -> 
+        {ok, _Resp}   -> 
             ok = emqttd_coap_observer:unobserve(binary_to_list(Uri)),
             {noreply, State#state{ob_state = 0, token = undefined}}
     end;
 
-call_unobserve(Req, State) ->
+call_unobserve(Req, State = #state{handler = Handler}) ->
+    Handler:handle_unobserve(Req),
     return_response(Req, 'Content', State).
+
+call_handle_info(Topic, Msg, State = #state{handler = Handler}) ->
+    case Handler:handle_info(Topic, Msg) of
+        ok         -> {noreply, State};
+        {ok, Resp} -> observe_notify(Resp, State)
+    end.
+
+observe_notify(Resp =  #coap_response{}, State = #state{token = Token, ob_seq = ObSeq}) ->
+    NextObSeq = next_ob_seq(ObSeq),
+    Req = #coap_message{type = 'ACK', token = Token},
+    Resp2 = Resp#coap_response{code = 'Content'},
+    return_response(Req, Resp2, State, [{'Observe', NextObSeq}]),
+    {noreply, State#state{ob_seq = NextObSeq}};
 
 observe_notify(Msg, State = #state{token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),

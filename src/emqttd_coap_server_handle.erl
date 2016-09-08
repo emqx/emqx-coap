@@ -20,7 +20,7 @@
 
 -behaviour(emqttd_coap_handler).
 %% API.
--export([handle_request/1, handle_observe/1, handle_unobserve/1]).
+-export([handle_request/1, handle_observe/1, handle_unobserve/1, handle_info/2]).
 
 -include("emqttd_coap.hrl").
 
@@ -45,3 +45,6 @@ handle_observe(_Req) ->
 
 handle_unobserve(_Req) ->
     {error, 'MethodNotAllowed'}.
+
+handle_info(_, _) ->
+	ok.
