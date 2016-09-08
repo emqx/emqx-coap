@@ -24,19 +24,15 @@
 
 -include("emqttd_coap.hrl").
 
--include_lib("emqttd/include/emqttd.hrl").
-
 handle_request(_Req = #coap_message{method = 'GET'}) ->
     {error, 'MethodNotAllowed'};
 
 handle_request(_Req = #coap_message{method = 'POST'}) ->
     {error, 'MethodNotAllowed'};
     
-
 handle_request(_Req = #coap_message{method = 'PUT'}) ->
     {error, 'MethodNotAllowed'};
     
-
 handle_request(_Req = #coap_message{method = 'DELETE'}) ->
     {error, 'MethodNotAllowed'}.
 
