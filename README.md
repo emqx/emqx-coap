@@ -79,6 +79,11 @@ unsubscribe(Payload) ->
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
     emqttd:unsubscribe(Topic).
 
+handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
+    Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
+    io:format("Topic:~p, Msg:~p~n", [Topic, Msg]),
+    {ok, #coap_response{payload = Payload2}}.
+
 ```
 
 ```erlang
