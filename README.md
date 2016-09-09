@@ -4,11 +4,6 @@ emqttd_coap
 
 CoAP Gateway for The EMQTT Broker
 
-License
--------
-
-Apache License Version 2.
-
 Configure Plugin
 ----------------
 
@@ -97,13 +92,17 @@ yum install libcoap
 coap-client -m post -e "qos=0&retain=0&message=payload&topic=hello" coap://localhost/mqtt
 ```
 
-
 Load Plugin
 -----------
 
 ```
 ./bin/emqttd_ctl plugins load emqttd_coap
 ```
+
+License
+-------
+
+Apache License Version 2.
 
 Author
 ------
