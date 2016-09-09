@@ -58,6 +58,10 @@ handle_unobserve(#coap_message{payload = Payload}) ->
     unsubscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
 
+handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
+    Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
+    {ok, #coap_response{payload = Payload2}}.
+
 
 publish(Payload) ->
     ParamsList = parse_params(Payload),
@@ -72,7 +76,7 @@ publish(Payload) ->
 subscribe(Payload) ->
     ParamsList = parse_params(Payload),
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    emqttd:unsubscribe(Topic).
+    emqttd:subscribe(Topic).
 
 unsubscribe(Payload) ->
     ParamsList = parse_params(Payload),

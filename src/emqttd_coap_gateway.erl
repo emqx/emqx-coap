@@ -83,7 +83,7 @@ subscribe(Payload) when Payload =:= <<>> ->
 subscribe(Payload) ->
     ParamsList = parse_params(Payload),
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    emqttd:unsubscribe(Topic).
+    emqttd:subscribe(Topic).
 
 unsubscribe(Payload) when Payload =:= <<>> ->
     ok;
