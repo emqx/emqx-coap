@@ -32,7 +32,7 @@
 
 -type(coap_request() :: #coap_request{}).
 
--record(coap_response, {code, payload = <<>>}).
+-record(coap_response, {code, payload = <<>>, etag = <<>>}).
 
 -type(coap_response() :: #coap_response{}).
 

@@ -14,30 +14,33 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_app).
+-module(emqttd_coap_server_handle).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(application).
+-behaviour(emqttd_coap_handler).
+%% API.
+-export([handle_request/1, handle_observe/1, handle_unobserve/1, handle_info/2]).
 
--export([start/2, stop/1]).
+-include("emqttd_coap.hrl").
 
--define(APP, emqttd_coap).
+handle_request(_Req = #coap_message{method = 'GET'}) ->
+    {error, 'MethodNotAllowed'};
 
-start(_Type, _Args) ->
-    gen_conf:init(?APP),
-    io:format("Env: ~p~n", [application:get_all_env(?APP)]),
-    Ret = emqttd_coap_sup:start_link(gen_conf:list(?APP, listener)),
-    case gen_conf:list(?APP, gateway) of
-        [] -> emqttd_coap_server:register_handler("", emqttd_coap_server_handle);
-        List ->
-            lists:foreach(
-                fun({_, Prefix, Handler}) -> 
-                    emqttd_coap_server:register_handler(Prefix, Handler)
-                end, List)
-    end,
-    Ret.
+handle_request(_Req = #coap_message{method = 'POST'}) ->
+    {error, 'MethodNotAllowed'};
+    
+handle_request(_Req = #coap_message{method = 'PUT'}) ->
+    {error, 'MethodNotAllowed'};
+    
+handle_request(_Req = #coap_message{method = 'DELETE'}) ->
+    {error, 'MethodNotAllowed'}.
 
-stop(_State) ->
-    ok.
+handle_observe(_Req) ->
+    {error, 'MethodNotAllowed'}.
 
+handle_unobserve(_Req) ->
+    {error, 'MethodNotAllowed'}.
+
+handle_info(_, _) ->
+	ok.

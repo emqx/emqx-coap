@@ -58,7 +58,8 @@ init([]) ->
 
 handle_call({observe, Uri, Pid}, _From, State) ->
     Subject = subject(Uri),
-    pg2:create(Subject ),
+    pg2:create(Subject),
+    io:format("Observe ~p ~p~n", [Subject, Pid]),
     {reply, pg2:join(Subject, Pid), State};
 
 handle_call({unobserve, Uri, Pid}, _From, State) ->

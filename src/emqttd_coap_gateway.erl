@@ -1,64 +1,74 @@
+%%--------------------------------------------------------------------
+%% Copyright (c) 2016 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%--------------------------------------------------------------------
 
-emqttd_coap
-===========
+-module(emqttd_coap_gateway).
 
-CoAP Gateway for The EMQTT Broker
+-author("Feng Lee <feng@emqtt.io>").
 
-Configure Plugin
-----------------
+-behaviour(emqttd_coap_handler).
+%% API.
+-export([handle_request/1, handle_observe/1, handle_unobserve/1, handle_info/2]).
 
-File: etc/emqttd_coap.conf
+-include("emqttd_coap.hrl").
 
-```erlang
-{listener, coap1, 5683, []}.
-
-{listener, coap2, 5684, []}.
-
-{gateway, "mqtt", emqttd_coap_gateway}.
-
-```
-
-## Usage
-
-### simple 
-
-emqttd_coap_gateway.erl
-
-```erlang
-implemented behaviour emqttd_coap_handler function
+-include_lib("emqttd/include/emqttd.hrl").
 
 handle_request(#coap_message{method = 'GET', payload = Payload}) ->
-    % do publish
     publish(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
 
 handle_request(#coap_message{method = 'POST', payload = Payload}) ->
-    % do publish
     publish(Payload),
     {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
 
-handle_request(#coap_message{method = 'PUT'}) ->
+handle_request(_Req = #coap_message{method = 'PUT'}) ->
     {ok, #coap_response{code = 'Changed', payload = <<"handle_request PUT">>}};
 
-handle_request(#coap_message{method = 'DELETE'}) ->
+handle_request(_Req = #coap_message{method = 'DELETE'}) ->
     {ok, #coap_response{code = 'Deleted', payload = <<"handle_request DELETE">>}}.
 
 handle_observe(#coap_message{payload = Payload}) ->
-    % do subscribe
     subscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
 
 handle_unobserve(#coap_message{payload = Payload}) ->
-    % do unsubscribe
     unsubscribe(Payload),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
 
 handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
     Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
+    io:format("Topic:~p, Msg:~p~n", [Topic, Msg]),
     {ok, #coap_response{payload = Payload2}}.
 
+int(S) -> list_to_integer(S).
 
-publish(Payload) ->
+bool("0") -> false;
+bool("1") -> true.
+
+parse_params(Payload) ->
+    Params = string:tokens(binary_to_list(Payload), "&"),
+    lists:foldl(
+        fun(Param, AccIn) -> 
+            [Key, Value] = string:tokens(Param, "="),
+            [{Key, Value}| AccIn]
+        end, [], Params).
+
+publish(Payload) when Payload =:= <<>> ->
+    ok;
+publish(Payload)->
     ParamsList = parse_params(Payload),
     ClientId = proplists:get_value("client", ParamsList, coap),
     Qos      = int(proplists:get_value("qos", ParamsList, "0")),
@@ -68,44 +78,17 @@ publish(Payload) ->
     Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
     emqttd:publish(Msg#mqtt_message{retain  = Retain}).
 
+subscribe(Payload) when Payload =:= <<>> ->
+    ok;
 subscribe(Payload) ->
     ParamsList = parse_params(Payload),
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
     emqttd:subscribe(Topic).
 
+unsubscribe(Payload) when Payload =:= <<>> ->
+    ok;
 unsubscribe(Payload) ->
     ParamsList = parse_params(Payload),
     Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
     emqttd:unsubscribe(Topic).
-
-handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
-    Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
-    io:format("Topic:~p, Msg:~p~n", [Topic, Msg]),
-    {ok, #coap_response{payload = Payload2}}.
-
-```
-
-```erlang
-yum install libcoap 
-
-% coap client publish message
-coap-client -m post -e "qos=0&retain=0&message=payload&topic=hello" coap://localhost/mqtt
-```
-
-Load Plugin
------------
-
-```
-./bin/emqttd_ctl plugins load emqttd_coap
-```
-
-License
--------
-
-Apache License Version 2.
-
-Author
-------
-
-Feng Lee <feng@emqtt.io>
 

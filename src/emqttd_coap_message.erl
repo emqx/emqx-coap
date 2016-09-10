@@ -36,7 +36,7 @@
 
 -include("emqttd_coap.hrl").
 
--import(emqttd_coap_iana, [type_name/1, type_enum/1, method_name/1]).
+-import(emqttd_coap_iana, [type_name/1, type_enum/1, method_name/1, resp_method_name/1, resp_method_code/1]).
 
 -export([parse/1, serialize/1, format/1]).
 
@@ -85,7 +85,7 @@ parse_option({14, <<Len:16/big-integer, Bin/binary>>}, OptNum, Options) ->
 add_option(OptNum, OptVal, Options) ->
     [decode_option({OptNum, OptVal}) | Options].
 
-decode_option({1, <<>>})   -> {'If-Match', true};
+decode_option({1, Val})   -> {'If-Match', Val};
 decode_option({3, Host})   -> {'Uri-Host', Host};
 decode_option({4, Etag})   -> {'ETag', Etag};
 decode_option({5, <<>>})   -> {'If-None-Match', true};
@@ -119,8 +119,9 @@ decode_content_format(I)  -> I.
 serialize(#coap_message{type = T, code = 0, id = Id}) -> %% empty messag
     <<?V:2, (type_enum(T)):2, 0:4, 0:8, Id:16>>;
 
-serialize(#coap_message{type = Type, code = {C, Dd}, id = MsgId, token = Token,
+serialize(#coap_message{type = Type, code = Code, id = MsgId, token = Token,
                         options = Options, payload = Payload}) ->
+    {C, Dd} = resp_method_code(Code),
     Header = <<?V:2, (type_enum(Type)):2, (size(Token)):4, C:3, Dd:5, MsgId:16, Token/binary>>,
     EncodedOptions = lists:sort([encode_option(Option) || Option <- Options]),
     {_, OptBin} = serialize_option_list(EncodedOptions),
@@ -141,7 +142,7 @@ serialize_option(OptNum, OptVal, LastNum) ->
       (encode_extended(Delta))/bytes, (encode_extended(Len))/bytes,
       OptVal/binary>>.
 
-encode_option({'If-Match', true})        -> {1, <<>>};
+encode_option({'If-Match', Val})         -> {1, Val};
 encode_option({'Uri-Host', Host})        -> {3, Host};
 encode_option({'ETag', Etag})            -> {4, Etag};
 encode_option({'If-None-Match', true})   -> {5, <<>>};
