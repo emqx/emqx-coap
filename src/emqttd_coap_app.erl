@@ -26,7 +26,6 @@
 
 start(_Type, _Args) ->
     gen_conf:init(?APP),
-    io:format("Env: ~p~n", [application:get_all_env(?APP)]),
     Ret = emqttd_coap_sup:start_link(gen_conf:list(?APP, listener)),
     case gen_conf:list(?APP, gateway) of
         [] -> emqttd_coap_server:register_handler("", emqttd_coap_server_handle);

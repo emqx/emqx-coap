@@ -2,7 +2,7 @@ PROJECT = emqttd_coap
 PROJECT_DESCRIPTION = CoAP Gateway for The EMQTT Broker
 PROJECT_VERSION = 0.2.0
 
-DEPS = cbor lager gen_conf esockd mochiweb emqttd
+DEPS = cbor lager gen_conf esockd mochiweb
 
 dep_cbor     = git https://github.com/emqtt/erlang-cbor.git master
 dep_lager    = git https://github.com/basho/lager.git
