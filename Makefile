@@ -11,7 +11,7 @@ dep_esockd   = git https://github.com/emqtt/esockd emq20
 dep_mochiweb = git https://github.com/emqtt/mochiweb master
 
 BUILD_DEPS = emqttd
-dep_emqttd   = git https://github.com/emqtt/emqttd emq20
+dep_emqttd = git https://github.com/emqtt/emqttd emq20
 
 ERLC_OPTS += +'{parse_transform, lager_transform}'
 
