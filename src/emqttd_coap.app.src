@@ -1,9 +1,0 @@
-{application, emqttd_coap, [
-  {description, "CoAP Gateway for The EMQTT Broker"},
-  {vsn, "0.2.0"},
-  {modules, []},
-  {registered, [emqttd_coap_sup]},
-  {applications, [kernel,stdlib,esockd]},
-  {mod, {emqttd_coap_app, []}},
-  {env, []}
-]}.
