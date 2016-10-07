@@ -14,13 +14,13 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_channel).
+-module(emq_coap_channel).
 
 -author("Feng Lee <feng@emqtt.io>").
 
 -behaviour(gen_server).
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
 %% API.
 -export([start_link/2, send_response/2]).
@@ -85,8 +85,8 @@ handle_cast({send_response, Resp}, State = #state{
         _ ->
             {State#state{next_msg_id = NextMsgId2}, Resp#coap_message{id = NextMsgId2}}    
     end,
-    ?LOG(info, "SEND ~p", [emqttd_coap_message:format(Resp2)], State),
-    gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(Resp2)),
+    ?LOG(info, "SEND ~p", [emq_coap_message:format(Resp2)], State),
+    gen_udp:send(Sock, IpAddr, Port, emq_coap_message:serialize(Resp2)),
     {noreply, State2};
 
 handle_cast(_Req, State) ->
@@ -94,8 +94,8 @@ handle_cast(_Req, State) ->
 
 handle_info({datagram, _From, Packet}, State) ->
     ?LOG(debug, "RECV ~p", [Packet], State),
-    Msg = emqttd_coap_message:parse(Packet),
-    ?LOG(info, "RECV ~p", [emqttd_coap_message:format(Msg)], State),
+    Msg = emq_coap_message:parse(Packet),
+    ?LOG(info, "RECV ~p", [emq_coap_message:format(Msg)], State),
     handle_message(Msg, State);
 
 handle_info({awaiting_ack, RespMsg = #coap_message{id = MsgId}}, 
@@ -106,8 +106,8 @@ handle_info({awaiting_ack, RespMsg = #coap_message{id = MsgId}},
             Timeout2 = Timeout * 2,
             AckTimer = erlang:send_after(Timeout2, self(), {awaiting_ack, RespMsg}),
             AwaitingAck2 = maps:put(MsgId, {AckTimer, Timeout2, RetryCount+1}, AwaitingAck),
-            ?LOG(info, "SEND ~p", [emqttd_coap_message:format(RespMsg)], State),
-            gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(RespMsg)),
+            ?LOG(info, "SEND ~p", [emq_coap_message:format(RespMsg)], State),
+            gen_udp:send(Sock, IpAddr, Port, emq_coap_message:serialize(RespMsg)),
             {noreply, State#state{awaiting_ack = AwaitingAck2}};
         {ok, {_, _, _}} ->
             {stop, normal, State};
@@ -118,8 +118,8 @@ handle_info({awaiting_ack, RespMsg = #coap_message{id = MsgId}},
 handle_info({auto_reply_ack, AckMsg = #coap_message{id = MsgId}, Token}, State = #state{
              endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck}) ->
     {IpAddr, Port} = Endpoint,
-    ?LOG(info, "SEND ~p", [emqttd_coap_message:format(AckMsg)], State),
-    gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(AckMsg)),
+    ?LOG(info, "SEND ~p", [emq_coap_message:format(AckMsg)], State),
+    gen_udp:send(Sock, IpAddr, Port, emq_coap_message:serialize(AckMsg)),
     AutoReplyAck2 = maps:put(MsgId, {Token, undefined}, AutoReplyAck),
     {noreply, State#state{auto_reply_ack = AutoReplyAck2}};
 
@@ -176,23 +176,23 @@ handle_non_req(Req, State) ->
 send_res_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
     {IpAddr, Port} = Endpoint,
     Resp = #coap_message{type = 'RST', id = Req#coap_message.id},
-    ?LOG(info, "SEND ~p", [emqttd_coap_message:format(Resp)], State),
-    gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(Resp)),
+    ?LOG(info, "SEND ~p", [emq_coap_message:format(Resp)], State),
+    gen_udp:send(Sock, IpAddr, Port, emq_coap_message:serialize(Resp)),
     State.
 
 handle_response(Req = #coap_message{options = Options}, 
                 State = #state{sock = Sock, endpoint = Endpoint, auto_reply_ack = AutoReplyAck}) ->
     Uri = proplists:get_value('Uri-Path', Options, <<>>),
     MsgId = Req#coap_message.id,
-    case emqttd_coap_response:get_responder(self(), binary_to_list(Uri), Endpoint) of
+    case emq_coap_response:get_responder(self(), binary_to_list(Uri), Endpoint) of
         {ok, Pid} ->
             Pid ! {coap_req, Req},
             State;
         {error, Code} ->
             Resp = #coap_message{type = 'ACK', code = Code, id = MsgId},
             {IpAddr, Port} = Endpoint,
-            ?LOG(info, "SEND ~p", [emqttd_coap_message:format(Resp)], State),
-            gen_udp:send(Sock, IpAddr, Port, emqttd_coap_message:serialize(Resp)),
+            ?LOG(info, "SEND ~p", [emq_coap_message:format(Resp)], State),
+            gen_udp:send(Sock, IpAddr, Port, emq_coap_message:serialize(Resp)),
             case maps:find(MsgId, AutoReplyAck) of
                 {ok, { _, undefined}} -> ok;
                 {ok, { _, Timer}}     -> erlang:cancel_timer(Timer);

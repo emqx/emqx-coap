@@ -14,34 +14,29 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_handler).
+-module(emq_coap_app).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-behaviour(application).
 
--ifdef(use_specs).
+-export([start/2, stop/1]).
 
--callback(handle_request(coap_request()) ->
-          {ok, coap_response()} | {error, coap_code()}).
+-define(APP, emq_coap).
 
--callback(handle_observe(coap_request()) ->
-          {ok, coap_response()} | {error, coap_code()}).
+start(_Type, _Args) ->
 
--callback(handle_unobserve(coap_request()) ->
-          {ok, coap_response()} | {error, coap_code()}).
+    Ret = emq_coap_sup:start_link(application:get_env(?APP, listener), []),
+    case application:get_env(?APP, gateway, []) of
+        [] -> emq_coap_server:register_handler("", emq_coap_server_handle);
+        List ->
+            lists:foreach(
+                fun({_, Prefix, Handler}) -> 
+                    emq_coap_server:register_handler(Prefix, Handler)
+                end, List)
+    end,
+    Ret.
 
--callback(handle_info(iodata(), any()) ->
-          {ok, coap_response()} | ok).
-
--else.
-
--export([behaviour_info/1]).
-
-behaviour_info(callbacks) ->
-    [{handle_request, 1}, {handle_observe, 1}, {handle_unobserve, 1}, {handle_info, 2}];
-behaviour_info(_Other) ->
-    undefined.
-
--endif.
+stop(_State) ->
+    ok.
 

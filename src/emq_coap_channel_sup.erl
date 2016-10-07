@@ -14,29 +14,28 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_app).
+-module(emq_coap_channel_sup).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(application).
+-include("emq_coap.hrl").
 
--export([start/2, stop/1]).
+-behaviour(supervisor).
 
--define(APP, emqttd_coap).
+-export([start_link/0, start_channel/2, init/1]).
 
-start(_Type, _Args) ->
-    gen_conf:init(?APP),
-    Ret = emqttd_coap_sup:start_link(gen_conf:list(?APP, listener)),
-    case gen_conf:list(?APP, gateway) of
-        [] -> emqttd_coap_server:register_handler("", emqttd_coap_server_handle);
-        List ->
-            lists:foreach(
-                fun({_, Prefix, Handler}) -> 
-                    emqttd_coap_server:register_handler(Prefix, Handler)
-                end, List)
-    end,
-    Ret.
+%% @doc Start CoAP Channel Supervisor.
+-spec(start_link() -> {ok, pid()}).
+start_link() ->
+	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-stop(_State) ->
-    ok.
+%% @doc Start a CoAP Channel
+-spec(start_channel(inet:socket(), coap_endpoint()) -> {ok, pid()}).
+start_channel(Sock, Endpoint) ->
+    supervisor:start_child(?MODULE, [Sock, Endpoint]).
+
+init([]) ->
+    {ok, {{simple_one_for_one, 0, 1},
+          [{coap_channel, {emq_coap_channel, start_link, []},
+              temporary, 5000, worker, [emq_coap_channel]}]}}.
 

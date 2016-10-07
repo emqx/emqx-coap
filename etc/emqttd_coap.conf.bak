@@ -1,4 +1,3 @@
-
 {listener, coap1, 5683, []}.
 
 {listener, coap2, 5684, []}.

@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_observer).
+-module(emq_coap_observer).
 
 -author("Feng Lee <feng@emqtt.io>").
 

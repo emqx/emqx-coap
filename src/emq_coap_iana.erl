@@ -14,11 +14,11 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_iana).
+-module(emq_coap_iana).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
 -export([type_name/1, type_enum/1, method_name/1, method_code/1, resp_method_name/1, resp_method_code/1]).
 

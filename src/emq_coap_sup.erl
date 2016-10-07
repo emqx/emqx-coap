@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_sup).
+-module(emq_coap_sup).
 
 -author("Feng Lee <feng@emqtt.io>").
 
@@ -29,12 +29,12 @@ start_link(Listeners) ->
 
 init([Listeners]) ->
     io:format("Listeners: ~p~n", [Listeners]),
-    ChSup = {emqttd_coap_channel_sup,
-             {emqttd_coap_channel_sup, start_link, []},
-              permanent, infinity, supervisor, [emqttd_coap_channel_sup]},
-    ChMFA = {emqttd_coap_channel_sup, start_channel, []},
+    ChSup = {emq_coap_channel_sup,
+             {emq_coap_channel_sup, start_link, []},
+              permanent, infinity, supervisor, [emq_coap_channel_sup]},
+    ChMFA = {emq_coap_channel_sup, start_channel, []},
     {ok, {{one_for_all, 10, 3600},
-          [ChSup, ?CHILD(emqttd_coap_observer), ?CHILD(emqttd_coap_server) |
+          [ChSup, ?CHILD(emq_coap_observer), ?CHILD(emq_coap_server) |
            [listener_child(Listener, ChMFA) || Listener <- Listeners]]}}.
 
 listener_child({listener, Name, Port, Opts}, ChMFA) ->

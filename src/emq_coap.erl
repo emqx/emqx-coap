@@ -14,14 +14,14 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap).
+-module(emq_coap).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
 -export([start/0]).
 
 start() ->
-    application:start(emqttd_coap).
+    application:start(emq_coap).
 

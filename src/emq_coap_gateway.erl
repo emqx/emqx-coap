@@ -14,15 +14,15 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_gateway).
+-module(emq_coap_gateway).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(emqttd_coap_handler).
+-behaviour(emq_coap_handler).
 %% API.
 -export([handle_request/1, handle_observe/1, handle_unobserve/1, handle_info/2]).
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
 -include_lib("emqttd/include/emqttd.hrl").
 
