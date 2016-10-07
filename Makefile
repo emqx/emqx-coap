@@ -19,5 +19,5 @@ ERLC_OPTS += +'{parse_transform, lager_transform}'
 
 include erlang.mk
 
-#app.config::
-#	cuttlefish -l info -e etc/ -c etc/emq_coap.conf -i priv/emq_coap.schema -d .data
+app.config::
+	cuttlefish -l info -e etc/ -c etc/emq_coap.conf -i priv/emq_coap.schema -d .data
