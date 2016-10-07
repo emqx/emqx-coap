@@ -26,7 +26,7 @@
 
 start(_Type, _Args) ->
 
-    Ret = emq_coap_sup:start_link(application:get_env(?APP, listener), []),
+    Ret = emq_coap_sup:start_link(application:get_env(?APP, listener, [])),
     case application:get_env(?APP, gateway, []) of
         [] -> emq_coap_server:register_handler("", emq_coap_server_handle);
         List ->

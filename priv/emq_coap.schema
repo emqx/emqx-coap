@@ -19,7 +19,7 @@
 end}.
 
 {mapping, "emq.coap.prefix.$name", "emq_coap.gateway", [
-  {default, "mqtt"},
+  {default, ""},
   {datatype, string}
 ]}.
 
