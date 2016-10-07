@@ -1,6 +1,0 @@
-
--name emqttd_coap@127.0.0.1
-
--setcookie emqttd_coap
-
--heart
