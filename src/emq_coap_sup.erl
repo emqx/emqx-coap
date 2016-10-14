@@ -24,21 +24,19 @@
 
 -define(CHILD(M), {M, {M, start_link, []}, permanent, 5000, worker, [M]}).
 
-start_link(Listeners) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Listeners]).
+start_link(Listener) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [Listener]).
 
-init([Listeners]) ->
-    io:format("Listeners: ~p~n", [Listeners]),
+init([Listener]) ->
     ChSup = {emq_coap_channel_sup,
              {emq_coap_channel_sup, start_link, []},
               permanent, infinity, supervisor, [emq_coap_channel_sup]},
     ChMFA = {emq_coap_channel_sup, start_channel, []},
     {ok, {{one_for_all, 10, 3600},
-          [ChSup, ?CHILD(emq_coap_observer), ?CHILD(emq_coap_server) |
-           [listener_child(Listener, ChMFA) || Listener <- Listeners]]}}.
+          [ChSup, ?CHILD(emq_coap_observer), ?CHILD(emq_coap_server), listener_child(Listener, ChMFA)]}}.
 
-listener_child({listener, Name, Port, Opts}, ChMFA) ->
-    {{coap_listener, Name},
-      {esockd_udp, server, [Name, Port, Opts, ChMFA]},
+listener_child(Port, ChMFA) ->
+    {{coap_listener, coap},
+      {esockd_udp, server, [coap, Port, [], ChMFA]},
         permanent, 5000, worker, [esockd_udp]}.
 

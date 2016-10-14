@@ -1,11 +1,6 @@
-{mapping, "coap.server.$id", "emq_coap.listeners", [
+{mapping, "coap.server", "emq_coap.listener", [
   {datatype, [integer, ip]}
 ]}.
-
-{translation, "emq_coap.listeners", fun(Conf) ->
-  Servers = cuttlefish_variable:filter_by_prefix("coap.server", Conf),
-  lists:map(fun({_, HostPort}) -> HostPort end, Servers)
-end}.
 
 {mapping, "coap.prefix.$name", "emq_coap.gateway", [
   {default, ""},
