@@ -2,7 +2,7 @@
 emqttd_coap
 ===========
 
-CoAP Gateway for The EMQTT Broker
+CoAP Gateway for The EMQ Broker
 
 Configure Plugin
 ----------------
