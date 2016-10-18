@@ -1,31 +1,30 @@
 
-emqttd_coap
-===========
+emq_coap
+========
 
-CoAP Gateway for The EMQTT Broker
+CoAP Gateway for the EMQ Broker
 
 Configure Plugin
 ----------------
 
-File: etc/emqttd_coap.conf
+File: etc/emq_coap.conf
 
-```erlang
-{listener, coap1, 5683, []}.
+```
+coap.server = 5683
 
-{listener, coap2, 5684, []}.
+coap.prefix.mqtt = mqtt
 
-{gateway, "mqtt", emqttd_coap_gateway}.
-
+coap.handler.mqtt = emq_coap_gateway
 ```
 
 ## Usage
 
 ### simple 
 
-emqttd_coap_gateway.erl
+emq_coap_gateway.erl
 
 ```erlang
-implemented behaviour emqttd_coap_handler function
+implemented behaviour emq_coap_handler function
 
 handle_request(#coap_message{method = 'GET', payload = Payload}) ->
     % do publish
@@ -96,13 +95,13 @@ Load Plugin
 -----------
 
 ```
-./bin/emqttd_ctl plugins load emqttd_coap
+./bin/emqttd_ctl plugins load emq_coap
 ```
 
 License
 -------
 
-Apache License Version 2.
+Apache License Version 2.0
 
 Author
 ------

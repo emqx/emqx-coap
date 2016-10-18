@@ -14,14 +14,28 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap).
+-module(emq_coap_channel_sup).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
--export([start/0]).
+-behaviour(supervisor).
 
-start() ->
-    application:start(emqttd_coap).
+-export([start_link/0, start_channel/2, init/1]).
+
+%% @doc Start CoAP Channel Supervisor.
+-spec(start_link() -> {ok, pid()}).
+start_link() ->
+	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+%% @doc Start a CoAP Channel
+-spec(start_channel(inet:socket(), coap_endpoint()) -> {ok, pid()}).
+start_channel(Sock, Endpoint) ->
+    supervisor:start_child(?MODULE, [Sock, Endpoint]).
+
+init([]) ->
+    {ok, {{simple_one_for_one, 0, 1},
+          [{coap_channel, {emq_coap_channel, start_link, []},
+              temporary, 5000, worker, [emq_coap_channel]}]}}.
 

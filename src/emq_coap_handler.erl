@@ -14,28 +14,34 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_channel_sup).
+-module(emq_coap_handler).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
--behaviour(supervisor).
+-ifdef(use_specs).
 
--export([start_link/0, start_channel/2, init/1]).
+-callback(handle_request(coap_request()) ->
+          {ok, coap_response()} | {error, coap_code()}).
 
-%% @doc Start CoAP Channel Supervisor.
--spec(start_link() -> {ok, pid()}).
-start_link() ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+-callback(handle_observe(coap_request()) ->
+          {ok, coap_response()} | {error, coap_code()}).
 
-%% @doc Start a CoAP Channel
--spec(start_channel(inet:socket(), coap_endpoint()) -> {ok, pid()}).
-start_channel(Sock, Endpoint) ->
-    supervisor:start_child(?MODULE, [Sock, Endpoint]).
+-callback(handle_unobserve(coap_request()) ->
+          {ok, coap_response()} | {error, coap_code()}).
 
-init([]) ->
-    {ok, {{simple_one_for_one, 0, 1},
-          [{coap_channel, {emqttd_coap_channel, start_link, []},
-              temporary, 5000, worker, [emqttd_coap_channel]}]}}.
+-callback(handle_info(iodata(), any()) ->
+          {ok, coap_response()} | ok).
+
+-else.
+
+-export([behaviour_info/1]).
+
+behaviour_info(callbacks) ->
+    [{handle_request, 1}, {handle_observe, 1}, {handle_unobserve, 1}, {handle_info, 2}];
+behaviour_info(_Other) ->
+    undefined.
+
+-endif.
 

@@ -1,0 +1,21 @@
+{mapping, "coap.server", "emq_coap.listener", [
+  {datatype, [integer, ip]}
+]}.
+
+{mapping, "coap.prefix.$name", "emq_coap.gateway", [
+  {default, ""},
+  {datatype, string}
+]}.
+
+{mapping, "coap.handler.$name", "emq_coap.gateway", [
+  {datatype, atom}
+]}.
+
+{translation, "emq_coap.gateway", fun(Conf) ->
+  Prefixs = cuttlefish_variable:filter_by_prefix("coap.prefix", Conf),
+  Handlers = cuttlefish_variable:filter_by_prefix("coap.handler", Conf),
+  {_, Gateway} = lists:foldl(fun({_, Prefixs}, {[{_, Handler} | AccHandlers], AccIn}) ->
+    {AccHandlers, [{Prefixs, Handler, []} | AccIn]} 
+  end, {Handlers, []}, Prefixs),
+  Gateway
+end}.

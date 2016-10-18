@@ -2,4 +2,5 @@ deps/
 ebin/
 _rel/
 .erlang.mk/
-emqttd_coap.d
+emq_coap.d
+data/

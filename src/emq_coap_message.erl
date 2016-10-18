@@ -30,13 +30,13 @@
 %%
 %% @end
 
--module(emqttd_coap_message).
+-module(emq_coap_message).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
--import(emqttd_coap_iana, [type_name/1, type_enum/1, method_name/1, resp_method_name/1, resp_method_code/1]).
+-import(emq_coap_iana, [type_name/1, type_enum/1, method_name/1, resp_method_name/1, resp_method_code/1]).
 
 -export([parse/1, serialize/1, format/1]).
 

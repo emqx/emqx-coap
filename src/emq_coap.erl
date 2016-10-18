@@ -14,34 +14,14 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_handler).
+-module(emq_coap).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
--ifdef(use_specs).
+-export([start/0]).
 
--callback(handle_request(coap_request()) ->
-          {ok, coap_response()} | {error, coap_code()}).
-
--callback(handle_observe(coap_request()) ->
-          {ok, coap_response()} | {error, coap_code()}).
-
--callback(handle_unobserve(coap_request()) ->
-          {ok, coap_response()} | {error, coap_code()}).
-
--callback(handle_info(iodata(), any()) ->
-          {ok, coap_response()} | ok).
-
--else.
-
--export([behaviour_info/1]).
-
-behaviour_info(callbacks) ->
-    [{handle_request, 1}, {handle_observe, 1}, {handle_unobserve, 1}, {handle_info, 2}];
-behaviour_info(_Other) ->
-    undefined.
-
--endif.
+start() ->
+    application:start(emq_coap).
 

@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_app).
+-module(emq_coap_app).
 
 -author("Feng Lee <feng@emqtt.io>").
 
@@ -22,17 +22,17 @@
 
 -export([start/2, stop/1]).
 
--define(APP, emqttd_coap).
+-define(APP, emq_coap).
 
 start(_Type, _Args) ->
-    gen_conf:init(?APP),
-    Ret = emqttd_coap_sup:start_link(gen_conf:list(?APP, listener)),
-    case gen_conf:list(?APP, gateway) of
-        [] -> emqttd_coap_server:register_handler("", emqttd_coap_server_handle);
+
+    Ret = emq_coap_sup:start_link(application:get_env(?APP, listener, 5683)),
+    case application:get_env(?APP, gateway, []) of
+        [] -> emq_coap_server:register_handler("", emq_coap_server_handle);
         List ->
             lists:foreach(
                 fun({_, Prefix, Handler}) -> 
-                    emqttd_coap_server:register_handler(Prefix, Handler)
+                    emq_coap_server:register_handler(Prefix, Handler)
                 end, List)
     end,
     Ret.

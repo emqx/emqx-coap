@@ -14,13 +14,13 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqttd_coap_response).
+-module(emq_coap_response).
 
 -author("Feng Lee <feng@emqtt.io>").
 
 -behaviour(gen_server).
 
--include("emqttd_coap.hrl").
+-include("emq_coap.hrl").
 
 -record(state, {uri, handler, ob_state, ob_seq, token, channel}).
 
@@ -32,7 +32,7 @@
          terminate/2, code_change/3]).
 
 get_responder(Channel, Uri, Endpoint) ->
-    case emqttd_coap_server:match_handler(Uri) of
+    case emq_coap_server:match_handler(Uri) of
         {ok, Handler} ->
             case start_link(Channel, Uri, Endpoint, Handler) of
                 {ok, Pid} -> {ok, Pid};
@@ -71,7 +71,7 @@ handle_info({notify, Msg}, State = #state{ob_state = 0}) ->
 
 handle_info({'DOWN', _, _, _, _}, State = #state{ob_state = Observe, uri = Uri}) ->
     case Observe of
-        1 -> emqttd_coap_observer:unobserve(Uri);
+        1 -> emq_coap_observer:unobserve(Uri);
         _ -> ok
     end,
     {stop, normal, State};
@@ -127,7 +127,7 @@ call_observe(Req = #coap_message{options = Options},
         {error, Code} -> return_response(Req, Code, State);
         {ok, _Resp}    -> 
             NextObSeq = next_ob_seq(ObSeq),
-            ok = emqttd_coap_observer:observe(binary_to_list(Uri)),
+            ok = emq_coap_observer:observe(binary_to_list(Uri)),
             Resp = #coap_response{code = 'Content', payload = Req#coap_message.payload},
             return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
             {noreply, State#state{ob_state = 1, token = Req#coap_message.token, ob_seq = NextObSeq}}
@@ -143,7 +143,7 @@ call_unobserve(Req = #coap_message{options = Options},
     case Handler:handle_unobserve(Req) of
         {error, Code} -> return_response(Req, Code, State);
         {ok, _Resp}   -> 
-            ok = emqttd_coap_observer:unobserve(binary_to_list(Uri)),
+            ok = emq_coap_observer:unobserve(binary_to_list(Uri)),
             {noreply, State#state{ob_state = 0, token = undefined}}
     end;
 
@@ -173,7 +173,7 @@ observe_notify(Msg, State = #state{token = Token, ob_seq = ObSeq}) ->
 
 return_response(Req, Code, State = #state{channel = Channel}) when is_atom(Code) ->
     Resp = #coap_message{type = Req#coap_message.type, code = Code, id = Req#coap_message.id},
-    emqttd_coap_channel:send_response(Channel, Resp),
+    emq_coap_channel:send_response(Channel, Resp),
     {noreply, State};
 return_response(Req, Resp, State) ->
     return_response(Req, Resp, State, []).
@@ -193,7 +193,7 @@ return_response(Req = #coap_message{options = Options},
                 token   = Req#coap_message.token,
                 payload = Resp#coap_response.payload},
     
-    emqttd_coap_channel:send_response(Channel, Resp3),
+    emq_coap_channel:send_response(Channel, Resp3),
     {noreply, State}.
 
 next_ob_seq(ObSeq) when ObSeq =:= 4095 ->
