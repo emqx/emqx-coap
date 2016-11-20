@@ -6,7 +6,7 @@ DEPS = cbor lager esockd mochiweb
 
 dep_cbor     = git https://github.com/emqtt/erlang-cbor master
 dep_lager    = git https://github.com/basho/lager
-dep_esockd   = git https://github.com/emqtt/esockd emq20
+dep_esockd   = git https://github.com/emqtt/esockd master
 dep_mochiweb = git https://github.com/emqtt/mochiweb master
 
 BUILD_DEPS = emqttd
