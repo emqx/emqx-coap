@@ -31,7 +31,7 @@ start(_Type, _Args) ->
         [] -> emq_coap_server:register_handler("", emq_coap_server_handle);
         List ->
             lists:foreach(
-                fun({_, Prefix, Handler}) -> 
+                fun({Prefix, Handler, _}) ->
                     emq_coap_server:register_handler(Prefix, Handler)
                 end, List)
     end,

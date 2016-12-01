@@ -12,16 +12,15 @@ File: etc/emq_coap.conf
 ```
 coap.server = 5683
 
-coap.prefix.mqtt = mqtt
-
-coap.handler.mqtt = emq_coap_gateway
+coap.prefix.set1 = mqtt
+coap.handler.set1 = emq_coap_gateway
 ```
 
-## Usage
+The prefix "mqtt" means a coap request to coap://example.org/mqtt will be processed by a handler called "emq_coap_gateway". 
 
-### simple 
+## Implement your own coap handler
 
-emq_coap_gateway.erl
+emq_coap_gateway.erl is an template, please write your own handler by this example.
 
 ```erlang
 implemented behaviour emq_coap_handler function
@@ -84,19 +83,62 @@ handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
 
 ```
 
-```erlang
-yum install libcoap 
-
-% coap client publish message
-coap-client -m post -e "qos=0&retain=0&message=payload&topic=hello" coap://localhost/mqtt
-```
-
 Load Plugin
 -----------
 
 ```
 ./bin/emqttd_ctl plugins load emq_coap
 ```
+
+## Client
+Here is a coap client code snippet talking with emq_coap gateway. It depends on coapthon package, please install it through 'pip install coapthon'.  
+```python
+#!/usr/bin/env python
+from Queue import Queue
+import getopt
+import random
+import sys
+import threading
+from coapthon import defines
+from coapthon.client.coap import CoAP
+from coapthon.client.helperclient import HelperClient
+from coapthon.messages.message import Message
+from coapthon.messages.request import Request
+from coapthon.utils import parse_uri
+import socket, time
+
+
+
+def client_callback_observe(response):
+    print("get a response\n")
+    print response.pretty_print()
+
+
+def main():
+    
+    coap_uri = coap://localhost/mqtt?topic=abc
+    host, port, path = parse_uri(coap_uri)
+    host = socket.gethostbyname(host)
+    client = HelperClient(server=(host, port))
+    
+    # subscribe topic "abc"
+    client.observe(coap_uri, client_callback_observe)
+        
+    time.sleep(1)
+    
+    # publish a message with topic="abc" payload="hello"
+    payload = "qos=1&retain=0&topic=abc&message=hello"
+    response = client.post("coap://localhost/mqtt", payload)
+    
+    client.stop()
+    
+
+
+if __name__ == '__main__':
+    main()
+```
+
+emq_coap gateway does not accept GET and DELETE request.
 
 License
 -------
