@@ -116,7 +116,7 @@ def client_callback_observe(response):
 
 def main():
     
-    coap_uri = coap://localhost/mqtt?topic=abc
+    coap_uri = "coap://localhost/mqtt?topic=abc"
     host, port, path = parse_uri(coap_uri)
     host = socket.gethostbyname(host)
     client = HelperClient(server=(host, port))
