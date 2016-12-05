@@ -14,8 +14,11 @@
 {translation, "emq_coap.gateway", fun(Conf) ->
   Prefixs = cuttlefish_variable:filter_by_prefix("coap.prefix", Conf),
   Handlers = cuttlefish_variable:filter_by_prefix("coap.handler", Conf),
-  {_, Gateway} = lists:foldl(fun({_, Prefixs}, {[{_, Handler} | AccHandlers], AccIn}) ->
-    {AccHandlers, [{Prefixs, Handler, []} | AccIn]} 
-  end, {Handlers, []}, Prefixs),
-  Gateway
+  Zipped = lists:zip(Prefixs, Handlers),
+  lists:foldl(fun(Item, AccIn) ->
+                     {{_, Prefix}, {_, Handler}} = Item,
+                     [{Prefix, Handler, []} | AccIn]
+              end, 
+              [], 
+              Zipped)
 end}.

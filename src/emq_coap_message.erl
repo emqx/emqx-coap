@@ -38,7 +38,7 @@
 
 -import(emq_coap_iana, [type_name/1, type_enum/1, method_name/1, resp_method_name/1, resp_method_code/1]).
 
--export([parse/1, serialize/1, format/1]).
+-export([parse/1, serialize/1, format/1, get_option/2, get_last_path/1]).
 
 -define(V, 2#01).
 
@@ -124,17 +124,22 @@ serialize(#coap_message{type = Type, code = Code, id = MsgId, token = Token,
     {C, Dd} = resp_method_code(Code),
     Header = <<?V:2, (type_enum(Type)):2, (size(Token)):4, C:3, Dd:5, MsgId:16, Token/binary>>,
     EncodedOptions = lists:sort([encode_option(Option) || Option <- Options]),
-    {_, OptBin} = serialize_option_list(EncodedOptions),
-    [Header, OptBin, payload_marker(Payload)].
+    OptBin = serialize_option_list(EncodedOptions),
+    PayloadMarker = payload_marker(Payload),
+    <<Header/binary, OptBin/binary, PayloadMarker/binary>>.
 
 payload_marker(<<>>) -> <<>>;
-payload_marker(Payload) -> [16#FF, Payload].
+payload_marker(Payload) when is_list(Payload) ->
+    Payload_Bin = list_to_binary(Payload),
+    <<16#FF:8, Payload_Bin/binary>>;
+payload_marker(Payload) -> <<16#FF:8, Payload/binary>>.
 
 serialize_option_list(Options) ->
-    lists:foldr(fun({OptNum, OptVal}, {LastNum, Acc}) ->
-                Bin = serialize_option(OptNum, OptVal, LastNum),
-                {OptNum, [Bin | Acc]}
-        end, {0, []}, Options).
+    {_Number, Bin_list} = lists:foldr(fun({OptNum, OptVal}, {LastNum, Acc}) ->
+                                          Bin = serialize_option(OptNum, OptVal, LastNum),
+                                          {OptNum, [Bin | Acc]}
+                                      end, {0, []}, Options),
+    list_to_binary(lists:reverse(Bin_list)).
 
 serialize_option(OptNum, OptVal, LastNum) ->
     Delta = OptNum - LastNum, Len = byte_size(OptVal),
@@ -182,6 +187,17 @@ encode_extended(Delta) when Delta >= 13  -> <<(Delta - 13):8>>;
 encode_extended(_Delta)                  -> <<>>.
 
 format(Msg = #coap_message{}) -> Msg. %% TODO:
+
+get_option(#coap_message{options = Opts}, OptName) ->
+    [V || {OptionName, V} <- Opts, OptionName =:= OptName].
+
+get_last_path(Req) ->
+    UriList = get_option(Req, 'Uri-Path'),
+    case length(UriList) of
+        0 -> [];
+        _ -> lists:last(UriList)
+    end.
+
 
 -ifdef(TEST).
 
