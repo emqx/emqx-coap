@@ -1,6 +1,6 @@
 {application,emq_coap,
              [{id,"emq_coap"},
-              {vsn,"0.2.2"},
+              {vsn,"0.2.7"},
               {description,"EMQTT coap gateway"},
               {modules,[]},
               {registered,[]},
