@@ -1,6 +1,6 @@
 PROJECT = emq_coap
 PROJECT_DESCRIPTION = CoAP Gateway
-PROJECT_VERSION = 0.2.2
+PROJECT_VERSION = 0.2.7
 
 DEPS = cbor lager esockd
 
