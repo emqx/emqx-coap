@@ -1,0 +1,9 @@
+{application,emq_coap,
+             [{id,"emq_coap"},
+              {vsn,"0.2.2"},
+              {description,"EMQTT coap gateway"},
+              {modules,[]},
+              {registered,[]},
+              {applications,[kernel,stdlib,gen_logger, cbor, esockd]},
+              {mod,{emq_coap_app,[]}},
+              {env,[]}]}.

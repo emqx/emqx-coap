@@ -40,6 +40,10 @@
 
 -export([parse/1, serialize/1, format/1, get_option/2, get_last_path/1]).
 
+-ifdef(TEST).
+-export([serialize_request/1]).
+-endif.
+
 -define(V, 2#01).
 
 %%--------------------------------------------------------------------
@@ -50,37 +54,49 @@
 parse(<<?V:2, T:2, 0:4, 0:8, Id:16/big-integer>>) -> %% empty message
     #coap_message{type = type_name(T), code = {0, 0}, id = Id};
 
-parse(<<?V:2, _T:2, 0:4, 0:8, _/binary>>) -> %% format error
-    error(format_error);
-
 parse(<<?V:2, T:2, TKL:4, C:3, Dd:5, Id:16/big-integer, Token:TKL/bytes, Bin/binary>>) ->
     {Options, Payload} = parse_option_list(Bin, 0, []),
     #coap_message{type = type_name(T), method = method_name({C, Dd}),
                   code = {C, Dd}, id = Id, token = Token,
-                  options = Options, payload = Payload}.
+                  options = Options, payload = Payload};
+
+parse(_Raw) -> %% format error
+    error(format_error).
 
 parse_option_list(<<>>, _, Options) ->
     {lists:reverse(Options), <<>>};
 parse_option_list(<<16#FF, Payload/binary>>, _, Options) ->
     {lists:reverse(Options), Payload};
-parse_option_list(<<Delta:4, OptLen:4, Bin/binary>>, OptNum, Options) when Delta =< 12 ->
-    parse_option({OptLen, Bin}, OptNum + Delta, Options);
 parse_option_list(<<13:4, OptLen:4, Delta:8, Bin/binary>>, OptNum, Options) ->
     parse_option({OptLen, Bin}, OptNum + Delta + 13, Options);
 parse_option_list(<<14:4, OptLen:4, Delta:16/big-integer, Bin/binary>>, OptNum, Options) ->
-    parse_option({OptLen, Bin}, OptNum + Delta + 269, Options).
+    parse_option({OptLen, Bin}, OptNum + Delta + 269, Options);
+parse_option_list(<<Delta:4, OptLen:4, Bin/binary>>, OptNum, Options) ->
+    case Delta =< 12 of
+        true -> parse_option({OptLen, Bin}, OptNum + Delta, Options);
+        false -> error(format_error)
+    end.
 
-parse_option({OptLen, Bin}, OptNum, Options) when OptLen =< 12 ->
-    <<OptVal:OptLen/binary, Left/binary>> = Bin,
-    parse_option_list(Left, OptNum, add_option(OptNum, OptVal, Options));
 parse_option({13, <<Len:8, Bin/binary>>}, OptNum, Options) ->
     OptLen = Len + 13,
-    <<OptVal:OptLen/binary, Left/binary>> = Bin,
-    parse_option_list(Left, OptNum, add_option(OptNum, OptVal, Options));
+    parse_option_ex({OptLen, Bin}, OptNum, Options);
 parse_option({14, <<Len:16/big-integer, Bin/binary>>}, OptNum, Options) ->
     OptLen = Len + 269,
-    <<OptVal:OptLen/binary, Left/binary>> = Bin,
-    parse_option(Left, OptNum, add_option(OptNum, OptVal, Options)).
+    parse_option_ex({OptLen, Bin}, OptNum, Options);
+parse_option({OptLen, Bin}, OptNum, Options)  ->
+    case OptLen =< 12 of
+        true -> parse_option_ex({OptLen, Bin}, OptNum, Options);
+        false -> error(format_error)
+    end.
+
+parse_option_ex({OptLen, Bin}, OptNum, Options) ->
+    case byte_size(Bin) < OptLen of
+        true -> error(format_error);
+        false ->
+            <<OptVal:OptLen/binary, Left/binary>> = Bin,
+            parse_option_list(Left, OptNum, add_option(OptNum, OptVal, Options))
+    end.
+
 
 add_option(OptNum, OptVal, Options) ->
     [decode_option({OptNum, OptVal}) | Options].
@@ -116,8 +132,11 @@ decode_content_format(I)  -> I.
 %% Serialize CoAP Message
 %%--------------------------------------------------------------------
 
-serialize(#coap_message{type = T, code = 0, id = Id}) -> %% empty messag
+serialize(#coap_message{type = T, code = 0, id = Id}) -> %% empty message
     <<?V:2, (type_enum(T)):2, 0:4, 0:8, Id:16>>;
+
+serialize(#coap_message{type = 'RST', id = Id}) -> %% RST message
+    <<?V:2, (type_enum('RST')):2, 0:4, 0:8, Id:16>>;
 
 serialize(#coap_message{type = Type, code = Code, id = MsgId, token = Token,
                         options = Options, payload = Payload}) ->
@@ -135,11 +154,14 @@ payload_marker(Payload) when is_list(Payload) ->
 payload_marker(Payload) -> <<16#FF:8, Payload/binary>>.
 
 serialize_option_list(Options) ->
-    {_Number, Bin_list} = lists:foldr(fun({OptNum, OptVal}, {LastNum, Acc}) ->
+    {_Number, Bin_list} = lists:foldl(fun({OptNum, OptVal}, {LastNum, Acc}) ->
                                           Bin = serialize_option(OptNum, OptVal, LastNum),
                                           {OptNum, [Bin | Acc]}
                                       end, {0, []}, Options),
     list_to_binary(lists:reverse(Bin_list)).
+
+serialize_option(OptNum, OptVal, LastNum) when is_list(OptVal)->
+    serialize_option(OptNum, list_to_binary(OptVal), LastNum);
 
 serialize_option(OptNum, OptVal, LastNum) ->
     Delta = OptNum - LastNum, Len = byte_size(OptVal),
@@ -200,13 +222,21 @@ get_last_path(Req) ->
 
 
 -ifdef(TEST).
+serialize_request(#coap_message{type = T, code = 0, id = Id}) -> %% empty message
+    <<?V:2, (type_enum(T)):2, 0:4, 0:8, Id:16>>;
 
--include_lib("eunit/include/eunit.hrl").
+serialize_request(#coap_message{type = 'RST', id = Id}) -> %% RST message
+    <<?V:2, (type_enum('RST')):2, 0:4, 0:8, Id:16>>;
 
-parse_test() ->
-    Msg = parse(<<?V:2, 0:2, 0:4, 1:8, 22096:16>>),
-    serialize(Msg),
-    ?assertEqual(22096, Msg#coap_message.id).
-
+serialize_request(#coap_message{type = Type, code = Code, id = MsgId, token = Token,
+    options = Options, payload = Payload}) ->
+    {C, Dd} = emq_coap_iana:method_code(Code),
+    Header = <<?V:2, (type_enum(Type)):2, (size(Token)):4, C:3, Dd:5, MsgId:16, Token/binary>>,
+    EncodedOptions = lists:sort([encode_option(Option) || Option <- Options]),
+    OptBin = serialize_option_list(EncodedOptions),
+    PayloadMarker = payload_marker(Payload),
+    <<Header/binary, OptBin/binary, PayloadMarker/binary>>.
 -endif.
+
+
 

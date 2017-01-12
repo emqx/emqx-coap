@@ -115,6 +115,8 @@ def client_callback_observe(response):
 
 
 def main():
+    # please encode topic and message payload with percent-encoding
+    # if topic and payload contains special characters other than alphabet and digits 
     
     coap_uri = "coap://localhost/mqtt?topic=abc"
     host, port, path = parse_uri(coap_uri)
@@ -127,7 +129,7 @@ def main():
     time.sleep(1)
     
     # publish a message with topic="abc" payload="hello"
-    payload = "qos=1&retain=0&topic=abc&message=hello"
+    payload = "topic=abc&message=hello"
     response = client.post("coap://localhost/mqtt", payload)
     
     client.stop()
@@ -139,6 +141,10 @@ if __name__ == '__main__':
 ```
 
 emq_coap gateway does not accept GET and DELETE request.
+
+In case topic and message contains special characters, such as '&' or '/', please percent-encoding them before assembling a coap payload.
+For example, topic="/abc" and message="x=9", coap payload should be "topic=%2Fabc&message=x%3D9".
+
 
 License
 -------
