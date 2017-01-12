@@ -62,6 +62,22 @@ init([Sock, Endpoint]) ->
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
 
+handle_cast({send_response, Resp}, State) when Resp#coap_message.type =:= 'RST' ->
+    MsgId = Resp#coap_message.id,
+    NextMsgId = State#state.next_msg_id,
+    AutoReplyAck = State#state.auto_reply_ack,
+    State2 = case maps:find(MsgId, AutoReplyAck) of
+                          {ok, {_, undefined}} ->
+                              State;
+                          {ok, {_, Timer}} ->
+                              erlang:cancel_timer(Timer),
+                              State#state{auto_reply_ack = maps:remove(MsgId, AutoReplyAck)};
+                          _ ->
+                              State
+                      end,
+    send_reset_msg(Resp, State2),
+    {noreply, State2#state{next_msg_id = next_msg_id(NextMsgId)}};
+
 handle_cast({send_response, Resp}, State = #state{
              endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck, 
              awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
@@ -162,7 +178,7 @@ handle_con_req(Req = #coap_message{method = Mothod, token = Token, id = MsgId},
                State = #state{auto_reply_ack = AutoReplyAck}) ->
     case Mothod of
         undefined ->
-            send_res_msg(Req, State);
+            send_reset_msg(Req, State);
         _ ->
             AckMsg = #coap_message{type = 'ACK', id = Req#coap_message.id},
             Timer = erlang:send_after(?PROCESSING_DELAY, self(), {auto_reply_ack, AckMsg, Token}),
@@ -172,8 +188,8 @@ handle_con_req(Req = #coap_message{method = Mothod, token = Token, id = MsgId},
 
 handle_non_req(Req, State) ->
     handle_response(Req, State).
-    
-send_res_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
+
+send_reset_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
     {IpAddr, Port} = Endpoint,
     Resp = #coap_message{type = 'RST', id = Req#coap_message.id},
     ?LOG(info, "SEND ~p", [emq_coap_message:format(Resp)], State),
@@ -182,7 +198,7 @@ send_res_msg(Req, State = #state{sock = Sock, endpoint = Endpoint}) ->
 
 handle_response(Req = #coap_message{options = Options}, 
                 State = #state{sock = Sock, endpoint = Endpoint, auto_reply_ack = AutoReplyAck}) ->
-    Uri = proplists:get_value('Uri-Path', Options, <<>>),
+    Uri = emq_coap_message:get_last_path(Req),
     MsgId = Req#coap_message.id,
     case emq_coap_response:get_responder(self(), binary_to_list(Uri), Endpoint) of
         {ok, Pid} ->

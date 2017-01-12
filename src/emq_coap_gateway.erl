@@ -26,22 +26,22 @@
 
 -include_lib("emqttd/include/emqttd.hrl").
 
-handle_request(#coap_message{method = 'GET', payload = Payload}) ->
-    publish(Payload),
-    {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
+handle_request(_Req=#coap_message{method = 'GET'}) ->
+    {notsupport};
 
 handle_request(#coap_message{method = 'POST', payload = Payload}) ->
     publish(Payload),
-    {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
+    {ok, #coap_response{code = 'Created'}};
 
 handle_request(_Req = #coap_message{method = 'PUT'}) ->
-    {ok, #coap_response{code = 'Changed', payload = <<"handle_request PUT">>}};
+    {notsupport};
 
 handle_request(_Req = #coap_message{method = 'DELETE'}) ->
-    {ok, #coap_response{code = 'Deleted', payload = <<"handle_request DELETE">>}}.
+    {notsupport}.
 
-handle_observe(#coap_message{payload = Payload}) ->
-    subscribe(Payload),
+handle_observe(Req) ->
+    Queries = emq_coap_message:get_option(Req, 'Uri-Query'),
+    lists:foreach(fun subscribe/1, Queries),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
 
 handle_unobserve(#coap_message{payload = Payload}) ->

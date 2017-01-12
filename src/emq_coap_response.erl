@@ -117,6 +117,7 @@ call_handler(Req, State = #state{handler = Handler}) ->
                 true  -> return_response(Req, Resp, State);
                 false -> return_response(Req, 'PreconditionFailed', State)
             end;
+        {notsupport} -> return_reset(Req, State);
         {error, Code} -> return_response(Req, Code, State)
     end.
 
@@ -159,17 +160,22 @@ call_handle_info(Topic, Msg, State = #state{handler = Handler}) ->
 
 observe_notify(Resp =  #coap_response{}, State = #state{token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
-    Req = #coap_message{type = 'ACK', token = Token},
+    Req = #coap_message{type = 'CON', token = Token},
     Resp2 = Resp#coap_response{code = 'Content'},
     return_response(Req, Resp2, State, [{'Observe', NextObSeq}]),
     {noreply, State#state{ob_seq = NextObSeq}};
 
 observe_notify(Msg, State = #state{token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
-    Req = #coap_message{type = 'ACK', token = Token},
+    Req = #coap_message{type = 'CON', token = Token},
     Resp = #coap_response{code = 'Content', payload = Msg},
     return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
     {noreply, State#state{ob_seq = NextObSeq}}.
+
+return_reset(Req, State = #state{channel = Channel}) ->
+    Resp = #coap_message{type = 'RST', code = 0, id = Req#coap_message.id},
+    emq_coap_channel:send_response(Channel, Resp),
+    {noreply, State}.
 
 return_response(Req, Code, State = #state{channel = Channel}) when is_atom(Code) ->
     Resp = #coap_message{type = Req#coap_message.type, code = Code, id = Req#coap_message.id},
