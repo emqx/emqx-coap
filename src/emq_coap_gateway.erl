@@ -44,13 +44,14 @@ handle_observe(Req) ->
     lists:foreach(fun subscribe/1, Queries),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
 
-handle_unobserve(#coap_message{payload = Payload}) ->
-    unsubscribe(Payload),
+handle_unobserve(Req) ->
+    Queries = emq_coap_message:get_option(Req, 'Uri-Query'),
+    lists:foreach(fun unsubscribe/1, Queries),
     {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
 
 handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
     Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
-    io:format("Topic:~p, Msg:~p~n", [Topic, Msg]),
+    ?LOG(debug, "Topic:~p, Msg:~p~n", [Topic, Msg]),
     {ok, #coap_response{payload = Payload2}}.
 
 int(S) -> list_to_integer(S).
@@ -66,29 +67,44 @@ parse_params(Payload) ->
             [{Key, Value}| AccIn]
         end, [], Params).
 
-publish(Payload) when Payload =:= <<>> ->
+publish(<<>>) ->
     ok;
 publish(Payload)->
     ParamsList = parse_params(Payload),
-    ClientId = proplists:get_value("client", ParamsList, coap),
-    Qos      = int(proplists:get_value("qos", ParamsList, "0")),
-    Retain   = bool(proplists:get_value("retain", ParamsList, "0")),
-    Content  = list_to_binary(proplists:get_value("message", ParamsList, "")),
-    Topic    = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
-    emqttd:publish(Msg#mqtt_message{retain  = Retain}).
+    Content1 = proplists:get_value("message", ParamsList, ""),
+    Content  = list_to_binary(http_uri:decode(Content1)),
+    Topic1 = proplists:get_value("topic", ParamsList, ""),
+    case Topic1 of
+        "" -> ok;
+        _ ->
+            Topic    = list_to_binary(http_uri:decode(Topic1)),
+            ?LOG(debug, "gateway publish Topic=~p, Content=~p", [Topic, Content]),
+            emq_coap_broker_api:publish(coap, Topic, Content)
+    end.
 
-subscribe(Payload) when Payload =:= <<>> ->
+subscribe(<<>>) ->
     ok;
 subscribe(Payload) ->
     ParamsList = parse_params(Payload),
-    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    emqttd:subscribe(Topic).
+    Topic1 = proplists:get_value("topic", ParamsList, ""),
+    case Topic1 of
+        "" -> ok;
+        _ ->
+            Topic = list_to_binary(http_uri:decode(Topic1)),
+            ?LOG(debug, "gateway subscribe Topic=~p", [Topic]),
+            emq_coap_broker_api:subscribe(Topic)
+    end.
 
-unsubscribe(Payload) when Payload =:= <<>> ->
+unsubscribe(<<>>) ->
     ok;
 unsubscribe(Payload) ->
     ParamsList = parse_params(Payload),
-    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    emqttd:unsubscribe(Topic).
+    Topic1 = proplists:get_value("topic", ParamsList, ""),
+    case Topic1 of
+        "" -> ok;
+        _ ->
+            Topic = list_to_binary(http_uri:decode(Topic1)),
+            ?LOG(debug, "gateway unsubscribe Topic=~p", [Topic]),
+            emq_coap_broker_api:unsubscribe(Topic)
+    end.
 

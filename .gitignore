@@ -4,3 +4,10 @@ _rel/
 .erlang.mk/
 emq_coap.d
 data/
+*.iml
+.idea/
+logs/
+*.beam
+
+
+

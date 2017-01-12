@@ -32,6 +32,7 @@
          terminate/2, code_change/3]).
 
 get_responder(Channel, Uri, Endpoint) ->
+    ?LOG(debug, "get_responder() Channel=~p, Uri=~p, Endpoint=~p", [Channel, Uri, Endpoint]),
     case emq_coap_server:match_handler(Uri) of
         {ok, Handler} ->
             case start_link(Channel, Uri, Endpoint, Handler) of
@@ -59,25 +60,14 @@ handle_info({coap_req, Request}, State) ->
     handle_method(Request, State);
 
 handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 1}) ->
-    io:format("Topic:~p , Msg:~p~n", [Topic, Msg]),
+    ?LOG(debug, "dispatch Topic:~p , Msg:~p~n", [Topic, Msg]),
     call_handle_info(Topic, Msg, State);
 
-handle_info({notify, Msg}, State = #state{ob_state = 1}) -> 
-    observe_notify(Msg, State);
-
-handle_info({notify, Msg}, State = #state{ob_state = 0}) ->
-    io:format("ob_state is closed, Msg:~p~n", [Msg]),
-    {noreply, State, hibernate};
-
-handle_info({'DOWN', _, _, _, _}, State = #state{ob_state = Observe, uri = Uri}) ->
-    case Observe of
-        1 -> emq_coap_observer:unobserve(Uri);
-        _ -> ok
-    end,
+handle_info({'DOWN', _, _, _, _}, State) ->
     {stop, normal, State};
 
-handle_info(_Info, State) ->
-    io:format("_Info Msg:~p~n", [_Info]),
+handle_info(Info, State) ->
+    ?LOG(error, "Unknown Msg:~p~n", [Info]),
     {noreply, State}.
 
 terminate(_Reason, _State) ->
@@ -111,6 +101,7 @@ handle_method(Req, State) ->
     return_response(Req, 'MethodNotAllowed', State).
 
 call_handler(Req, State = #state{handler = Handler}) ->
+    ?LOG(debug, "call_handler() Req=~p, Handler=~p", [Req, Handler]),
     case Handler:handle_request(Req) of
         {ok, Resp}    -> 
             case if_match(Req, Resp) and if_none_match(Req, Resp) of
@@ -121,14 +112,12 @@ call_handler(Req, State = #state{handler = Handler}) ->
         {error, Code} -> return_response(Req, Code, State)
     end.
 
-call_observe(Req = #coap_message{options = Options}, 
-             State = #state{handler = Handler, ob_seq = ObSeq, ob_state = Observe}) when Observe =:= 0->
-    Uri = proplists:get_value('Uri-Path', Options, <<>>),
+call_observe(Req = #coap_message{options = _Options},
+             State = #state{handler = Handler, ob_seq = ObSeq, ob_state = 0})->
     case Handler:handle_observe(Req) of
         {error, Code} -> return_response(Req, Code, State);
         {ok, _Resp}    -> 
             NextObSeq = next_ob_seq(ObSeq),
-            ok = emq_coap_observer:observe(binary_to_list(Uri)),
             Resp = #coap_response{code = 'Content', payload = Req#coap_message.payload},
             return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
             {noreply, State#state{ob_state = 1, token = Req#coap_message.token, ob_seq = NextObSeq}}
@@ -138,13 +127,14 @@ call_observe(Req, State = #state{handler = Handler}) ->
     Handler:handle_observe(Req),
     return_response(Req, 'Content', State).
 
-call_unobserve(Req = #coap_message{options = Options}, 
-               State = #state{handler = Handler, ob_state = Observe}) when Observe =:= 1 ->
-    Uri = proplists:get_value('Uri-Path', Options, <<>>),
+call_unobserve(Req, State = #state{handler = Handler, ob_state = 1, ob_seq = ObSeq}) ->
+    ?LOG(debug, "call_unobserve() Req=~p, Handler=~p", [Req, Handler]),
     case Handler:handle_unobserve(Req) of
         {error, Code} -> return_response(Req, Code, State);
-        {ok, _Resp}   -> 
-            ok = emq_coap_observer:unobserve(binary_to_list(Uri)),
+        {ok, _Resp}   ->
+            NextObSeq = next_ob_seq(ObSeq),
+            Resp = #coap_response{code = 'Content'},
+            return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
             {noreply, State#state{ob_state = 0, token = undefined}}
     end;
 
@@ -202,8 +192,8 @@ return_response(Req = #coap_message{options = Options},
     emq_coap_channel:send_response(Channel, Resp3),
     {noreply, State}.
 
-next_ob_seq(ObSeq) when ObSeq =:= 4095 ->
-    1;
+next_ob_seq(16#FFFFFF) ->
+    0;
 next_ob_seq(ObSeq) ->
     ObSeq + 1.
 
