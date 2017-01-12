@@ -12,8 +12,8 @@ File: etc/emq_coap.conf
 ```
 coap.server = 5683
 
-coap.prefix.set1 = mqtt
-coap.handler.set1 = emq_coap_gateway
+coap.prefix.1 = mqtt
+coap.handler.1 = emq_coap_gateway
 ```
 
 The prefix "mqtt" means a coap request to coap://example.org/mqtt will be processed by a handler called "emq_coap_gateway". 
