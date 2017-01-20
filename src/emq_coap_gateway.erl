@@ -54,10 +54,6 @@ handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
     ?LOG(debug, "Topic:~p, Msg:~p~n", [Topic, Msg]),
     {ok, #coap_response{payload = Payload2}}.
 
-int(S) -> list_to_integer(S).
-
-bool("0") -> false;
-bool("1") -> true.
 
 parse_params(Payload) ->
     Params = string:tokens(binary_to_list(Payload), "&"),
