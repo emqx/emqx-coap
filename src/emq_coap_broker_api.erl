@@ -14,29 +14,45 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_app).
+-module(emq_coap_broker_api).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(application).
+-include_lib("emqttd/include/emqttd.hrl").
 
--export([start/2, stop/1]).
+%% modbus API Exports
+-export([subscribe/1, unsubscribe/1, publish/3]).
 
--define(APP, emq_coap).
+-ifdef(TEST).
 
-start(_Type, _Args) ->
+subscribe(Topic) ->
+    test_broker_api:subscribe(Topic).
 
-    Ret = emq_coap_sup:start_link(application:get_env(?APP, listener, 5683)),
-    case application:get_env(?APP, gateway, []) of
-        [] -> emq_coap_server:register_handler("", emq_coap_gateway);
-        List ->
-            lists:foreach(
-                fun({Prefix, Handler, _}) ->
-                    emq_coap_server:register_handler(Prefix, Handler)
-                end, List)
-    end,
-    Ret.
+unsubscribe(Topic) ->
+    test_broker_api:unsubscribe(Topic).
 
-stop(_State) ->
-    ok.
+publish(ClientId, Topic, Payload) ->
+    test_broker_api:publish(ClientId, Topic, Payload).
+
+-else.
+
+subscribe(Topic) ->
+    emqttd:subscribe(Topic).
+
+unsubscribe(Topic) ->
+    emqttd:unsubscribe(Topic).
+
+publish(ClientId, Topic, Payload) ->
+    Msg = emqttd_message:make(ClientId, 0, Topic, Payload),
+    emqttd:publish(Msg#mqtt_message{retain  = 0}).
+
+-endif.
+
+
+
+
+
+
+
+
 

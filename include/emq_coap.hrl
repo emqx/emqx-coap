@@ -51,3 +51,8 @@
                      | 'Proxy-Uri'
                      | 'Proxy-Scheme'
                      | 'Size1').
+
+
+-define(LOG(Level, Format, Args),
+    lager:Level("CoAP: " ++ Format, Args)).
+
