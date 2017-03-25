@@ -44,7 +44,7 @@ unsubscribe(Topic) ->
 
 publish(ClientId, Topic, Payload) ->
     Msg = emqttd_message:make(ClientId, 0, Topic, Payload),
-    emqttd:publish(Msg#mqtt_message{retain  = 0}).
+    emqttd:publish(Msg).
 
 -endif.
 
