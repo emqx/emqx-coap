@@ -22,7 +22,7 @@
 
 -include("emq_coap.hrl").
 
--record(state, {uri, handler, ob_state, ob_seq, token, channel}).
+-record(state, {uri, handler, ob_state, ob_seq, ob_token, channel}).
 
 %% API.
 -export([get_responder/3]).
@@ -44,6 +44,7 @@ get_responder(Channel, Uri, Endpoint) ->
     end.
 
 start_link(Channel, Uri, Endpoint, Handler) ->
+    ?LOG(debug, "start response Channel=~p, Uri=~p, Endpoint=~p, Handler=~p", [Channel, Uri, Endpoint, Handler]),
     gen_server:start_link({local, name(Uri, Endpoint)}, ?MODULE, [Channel, Uri, Handler], []).
 
 init([Channel, Uri, Handler]) ->
@@ -120,12 +121,14 @@ call_observe(Req = #coap_message{options = _Options},
             NextObSeq = next_ob_seq(ObSeq),
             Resp = #coap_response{code = 'Content', payload = Req#coap_message.payload},
             return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
-            {noreply, State#state{ob_state = 1, token = Req#coap_message.token, ob_seq = NextObSeq}}
+            {noreply, State#state{ob_state = 1, ob_token = Req#coap_message.token, ob_seq = NextObSeq}}
     end;
 
-call_observe(Req, State = #state{handler = Handler}) ->
-    Handler:handle_observe(Req),
-    return_response(Req, 'Content', State).
+call_observe(Req, State = #state{ob_state = 1})->
+    % already in observation state, no 2nd observe is allowed
+    ?LOG(warning, "discard second observe request", []),
+    return_response(Req, 'BadRequest', State).
+
 
 call_unobserve(Req, State = #state{handler = Handler, ob_state = 1, ob_seq = ObSeq}) ->
     ?LOG(debug, "call_unobserve() Req=~p, Handler=~p", [Req, Handler]),
@@ -135,12 +138,12 @@ call_unobserve(Req, State = #state{handler = Handler, ob_state = 1, ob_seq = ObS
             NextObSeq = next_ob_seq(ObSeq),
             Resp = #coap_response{code = 'Content'},
             return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
-            {noreply, State#state{ob_state = 0, token = undefined}}
+            {noreply, State#state{ob_state = 0, ob_token = undefined}}
     end;
 
-call_unobserve(Req, State = #state{handler = Handler}) ->
-    Handler:handle_unobserve(Req),
-    return_response(Req, 'Content', State).
+call_unobserve(Req, State = #state{ob_state = 0}) ->
+    ?LOG(warning, "discard unobserve request since observe is not set", []),
+    return_response(Req, 'BadRequest', State).
 
 call_handle_info(Topic, Msg, State = #state{handler = Handler}) ->
     case Handler:handle_info(Topic, Msg) of
@@ -148,14 +151,18 @@ call_handle_info(Topic, Msg, State = #state{handler = Handler}) ->
         {ok, Resp} -> observe_notify(Resp, State)
     end.
 
-observe_notify(Resp =  #coap_response{}, State = #state{token = Token, ob_seq = ObSeq}) ->
+observe_notify(Msg, State = #state{ob_state = 0}) ->
+    ?LOG(info, "discard notification since observation is not set, ~p", [Msg]),
+    {noreply, State};
+
+observe_notify(Resp =  #coap_response{}, State = #state{ob_token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
     Req = #coap_message{type = 'CON', token = Token},
     Resp2 = Resp#coap_response{code = 'Content'},
     return_response(Req, Resp2, State, [{'Observe', NextObSeq}]),
     {noreply, State#state{ob_seq = NextObSeq}};
 
-observe_notify(Msg, State = #state{token = Token, ob_seq = ObSeq}) ->
+observe_notify(Msg, State = #state{ob_token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
     Req = #coap_message{type = 'CON', token = Token},
     Resp = #coap_response{code = 'Content', payload = Msg},
@@ -188,7 +195,7 @@ return_response(Req = #coap_message{options = Options},
                 id      = Req#coap_message.id, 
                 token   = Req#coap_message.token,
                 payload = Resp#coap_response.payload},
-    
+    ?LOG(debug, "return_response Resp=~p", [Resp3]),
     emq_coap_channel:send_response(Channel, Resp3),
     {noreply, State}.
 
@@ -198,4 +205,11 @@ next_ob_seq(ObSeq) ->
     ObSeq + 1.
 
 name(Uri, Endpoint) ->
-    list_to_atom(lists:concat([?MODULE, "_",emqttd_net:format(Endpoint), Uri])).
+    Name = lists:concat([?MODULE, "_",emqttd_net:format(Endpoint), Uri]),
+    try list_to_existing_atom(Name) of
+        Atom -> Atom
+    catch
+        _:_ -> list_to_atom(Name)
+    end.
+
+
