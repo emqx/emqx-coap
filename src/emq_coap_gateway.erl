@@ -40,6 +40,7 @@ handle_request(_Req = #coap_message{method = 'DELETE'}) ->
     {notsupport}.
 
 handle_observe(Req) ->
+    ?LOG(debug, "handle_observe Req=~p", [Req]),
     Queries = emq_coap_message:get_option(Req, 'Uri-Query'),
     lists:foreach(fun subscribe/1, Queries),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
