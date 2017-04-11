@@ -1,96 +1,43 @@
 
-emq_coap
-========
+# emq_coap
 
 CoAP Gateway for the EMQ Broker
 
-Configure Plugin
-----------------
+## Configure Plugin
 
 File: etc/emq_coap.conf
 
 ```
 coap.server = 5683
-
-coap.prefix.1 = mqtt
-coap.handler.1 = emq_coap_gateway
+coap.keepalive = 3600
 ```
 
-The prefix "mqtt" means a coap request to coap://example.org/mqtt will be processed by a handler called "emq_coap_gateway". 
-
-## Implement your own coap handler
-
-emq_coap_gateway.erl is an template, please write your own handler by this example.
-
-```erlang
-implemented behaviour emq_coap_handler function
-
-handle_request(#coap_message{method = 'GET', payload = Payload}) ->
-    % do publish
-    publish(Payload),
-    {ok, #coap_response{code = 'Content', payload = <<"handle_request GET">>}};
-
-handle_request(#coap_message{method = 'POST', payload = Payload}) ->
-    % do publish
-    publish(Payload),
-    {ok, #coap_response{code = 'Created', payload = <<"handle_request POST">>}};
-
-handle_request(#coap_message{method = 'PUT'}) ->
-    {ok, #coap_response{code = 'Changed', payload = <<"handle_request PUT">>}};
-
-handle_request(#coap_message{method = 'DELETE'}) ->
-    {ok, #coap_response{code = 'Deleted', payload = <<"handle_request DELETE">>}}.
-
-handle_observe(#coap_message{payload = Payload}) ->
-    % do subscribe
-    subscribe(Payload),
-    {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.
-
-handle_unobserve(#coap_message{payload = Payload}) ->
-    % do unsubscribe
-    unsubscribe(Payload),
-    {ok, #coap_response{code = 'Content', payload = <<"handle_unobserve">>}}.
-
-handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
-    Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
-    {ok, #coap_response{payload = Payload2}}.
-
-
-publish(Payload) ->
-    ParamsList = parse_params(Payload),
-    ClientId = proplists:get_value("client", ParamsList, coap),
-    Qos      = int(proplists:get_value("qos", ParamsList, "0")),
-    Retain   = bool(proplists:get_value("retain", ParamsList, "0")),
-    Content  = list_to_binary(proplists:get_value("message", ParamsList, "")),
-    Topic    = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    Msg = emqttd_message:make(ClientId, Qos, Topic, Content),
-    emqttd:publish(Msg#mqtt_message{retain  = Retain}).
-
-subscribe(Payload) ->
-    ParamsList = parse_params(Payload),
-    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    emqttd:subscribe(Topic).
-
-unsubscribe(Payload) ->
-    ParamsList = parse_params(Payload),
-    Topic = list_to_binary(proplists:get_value("topic", ParamsList, "")),
-    emqttd:unsubscribe(Topic).
-
-handle_info(Topic, Msg = #mqtt_message{payload = Payload}) ->
-    Payload2 = lists:concat(["topic=",binary_to_list(Topic), "&message=", binary_to_list(Payload)]),
-    io:format("Topic:~p, Msg:~p~n", [Topic, Msg]),
-    {ok, #coap_response{payload = Payload2}}.
-
-```
-
-Load Plugin
------------
+## Load Plugin
 
 ```
 ./bin/emqttd_ctl plugins load emq_coap
 ```
 
-## Client
+## PUBLISH MESSAGE
+Send a POST command to "coap://host/mqtt", with payload="topic=XX&message=YY", where XX is topic and YY is payload. XX and YY should be percent-encoded.
+
+## SUBSCRIBE TOPIC
+Send a GET command to "coap://host/mqtt/?topic=XX", with observe=0 option, where XX is topic. XX should be percent-encoded.
+
+## UNSUBSCRIBE TOPIC
+Send a GET command to "coap://host/mqtt/?topic=XX", with observe=1 option, where XX is topic. XX should be percent-encoded.
+
+## DISPATCHED MESSAGE
+MQTT message sent from broker is carried in a caop notification, with payload="topic=XX&message=YY", where XX is topic and YY is payload. XX and YY are percent-encoded.
+
+## KEEPALIVE
+Send a GET command to "coap://host/mqtt/", without any options. The default timeout is 3600 seconds. Once keepalive timeout, coap client context will be dropped and coap client will never receive messages from broker.
+
+## NOTE
+Only one topic could be subscribed.
+
+
+## Client Example
 Here is a coap client code snippet talking with emq_coap gateway. It depends on coapthon package, please install it through 'pip install coapthon'.  
 ```python
 #!/usr/bin/env python
@@ -111,14 +58,18 @@ import socket, time
 
 def client_callback_observe(response):
     print("get a response\n")
-    print response.pretty_print()
+    if response:
+        print(response.pretty_print())
 
+def keepalive(client, uri):
+    client.get(uri)
+        
 
 def main():
     # please encode topic and message payload with percent-encoding
     # if topic and payload contains special characters other than alphabet and digits 
     
-    coap_uri = "coap://localhost/mqtt?topic=abc"
+    coap_uri = "coap://192.168.222.130/mqtt?topic=abc"
     host, port, path = parse_uri(coap_uri)
     host = socket.gethostbyname(host)
     client = HelperClient(server=(host, port))
@@ -130,7 +81,13 @@ def main():
     
     # publish a message with topic="abc" payload="hello"
     payload = "topic=abc&message=hello"
-    response = client.post("coap://localhost/mqtt", payload)
+    response = client.post("coap://192.168.222.130/mqtt", payload)
+
+    count = 0
+    while count < 20:  # wait 20 seconds to get subscribed message
+        count = count + 1
+        time.sleep(1)
+        keepalive(client, coap_uri)
     
     client.stop()
     
@@ -138,21 +95,20 @@ def main():
 
 if __name__ == '__main__':
     main()
+    
 ```
 
-emq_coap gateway does not accept GET and DELETE request.
+emq_coap gateway does not accept PUT and DELETE request.
 
 In case topic and message contains special characters, such as '&' or '/', please percent-encoding them before assembling a coap payload.
 For example, topic="/abc" and message="x=9", coap payload should be "topic=%2Fabc&message=x%3D9".
 
 
-License
--------
+# License
 
 Apache License Version 2.0
 
-Author
-------
+# Author
 
 Feng Lee <feng@emqtt.io>
 

@@ -20,21 +20,13 @@
 
 -behaviour(application).
 
+-include("emq_coap.hrl").
 -export([start/2, stop/1]).
 
--define(APP, emq_coap).
 
 start(_Type, _Args) ->
-
-    Ret = emq_coap_sup:start_link(application:get_env(?APP, listener, 5683)),
-    case application:get_env(?APP, gateway, []) of
-        [] -> emq_coap_server:register_handler("", emq_coap_gateway);
-        List ->
-            lists:foreach(
-                fun({Prefix, Handler, _}) ->
-                    emq_coap_server:register_handler(Prefix, Handler)
-                end, List)
-    end,
+    Ret = emq_coap_sup:start_link(application:get_env(?COAP_APP, listener, 5683)),
+    emq_coap_server:register_handler("mqtt", emq_coap_gateway),
     Ret.
 
 stop(_State) ->

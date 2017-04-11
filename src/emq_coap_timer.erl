@@ -14,29 +14,25 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_sup).
+-module(emq_coap_timer).
 
 -author("Feng Lee <feng@emqtt.io>").
 
--behaviour(supervisor).
+-include("emq_coap.hrl").
 
--export([start_link/1, init/1]).
+-export([cancel_timer/1, start_timer/2, restart_timer/3]).
 
--define(CHILD(M), {M, {M, start_link, []}, permanent, 5000, worker, [M]}).
 
-start_link(Listener) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Listener]).
+cancel_timer(TRef) when is_reference(TRef) ->
+    catch erlang:cancel_timer(TRef),
+    ok;
+cancel_timer(_) ->
+    ok.
 
-init([Listener]) ->
-    ChSup = {emq_coap_channel_sup,
-             {emq_coap_channel_sup, start_link, []},
-              permanent, infinity, supervisor, [emq_coap_channel_sup]},
-    ChMFA = {emq_coap_channel_sup, start_channel, []},
-    {ok, {{one_for_all, 10, 3600},
-          [ChSup, ?CHILD(emq_coap_server), ?CHILD(emq_coap_registry), listener_child(Listener, ChMFA)]}}.
+start_timer(Sec, Msg) ->
+    erlang:send_after(timer:seconds(Sec), self(), Msg).
 
-listener_child(Port, ChMFA) ->
-    {{coap_listener, coap},
-      {esockd_udp, server, [coap, Port, [], ChMFA]},
-        permanent, 5000, worker, [esockd_udp]}.
+restart_timer(TRef, Interval, Msg) ->
+    cancel_timer(TRef),
+    start_timer(Interval, Msg).
 

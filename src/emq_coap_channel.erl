@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {sock, endpoint, next_msg_id, auto_reply_ack, awaiting_ack}).
+-record(state, {sock, endpoint, next_msg_id, auto_reply_ack, awaiting_ack, tref, keepalive_interval}).
 
 
 -define(ACK_TIMEOUT, 2000).
@@ -50,11 +50,15 @@ start_link(Sock, Endpoint) ->
 
 %% gen_server.
 init([Sock, Endpoint]) ->
+    Interval = application:get_env(?COAP_APP, keepalive, 3600),
+    TRef = emq_coap_timer:start_timer(Interval, keepalive),
     {ok, #state{sock           = Sock, 
                 endpoint       = Endpoint, 
                 next_msg_id    = 0,
                 auto_reply_ack = #{},
-                awaiting_ack   = #{}}}.
+                awaiting_ack   = #{},
+                tref           = TRef,
+                keepalive_interval = Interval}}.
 
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
@@ -63,6 +67,8 @@ handle_cast({send_response, Resp}, State) when Resp#coap_message.type =:= 'RST' 
     MsgId = Resp#coap_message.id,
     NextMsgId = State#state.next_msg_id,
     AutoReplyAck = State#state.auto_reply_ack,
+    TRef = State#state.tref,
+    Interval = State#state.keepalive_interval,
     State2 = case maps:find(MsgId, AutoReplyAck) of
                           {ok, {_, undefined}} ->
                               State;
@@ -73,11 +79,13 @@ handle_cast({send_response, Resp}, State) when Resp#coap_message.type =:= 'RST' 
                               State
                       end,
     send_reset_msg(Resp, State2),
-    {noreply, State2#state{next_msg_id = next_msg_id(NextMsgId)}};
+    NewTRef = emq_coap_timer:restart_timer(TRef, Interval, keepalive),
+    {noreply, State2#state{next_msg_id = next_msg_id(NextMsgId), tref = NewTRef}};
 
 handle_cast({send_response, Resp}, State = #state{
              endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck, 
-             awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
+             awaiting_ack = AwaitingAck, next_msg_id = NextMsgId,
+             tref = TRef, keepalive_interval = Interval}) ->
     {IpAddr, Port} = Endpoint,
     MsgId = Resp#coap_message.id,
     NextMsgId2 = next_msg_id(NextMsgId),
@@ -100,17 +108,19 @@ handle_cast({send_response, Resp}, State = #state{
     end,
     ?LOG(info, "SEND1 ~p", [emq_coap_message:format(Resp2)]),
     gen_udp:send(Sock, IpAddr, Port, emq_coap_message:serialize(Resp2)),
-    {noreply, State2};
+    NewTRef = emq_coap_timer:restart_timer(TRef, Interval, keepalive),
+    {noreply, State2#state{tref = NewTRef}};
 
 handle_cast(_Req, State) ->
 	{noreply, State}.
 
-handle_info({datagram, _From, Packet}, State) ->
+handle_info({datagram, _From, Packet}, State=#state{tref = TRef, keepalive_interval = Interval}) ->
     ?LOG(debug, "RECV udp data ~p", [Packet]),
     case catch(emq_coap_message:parse(Packet)) of
         Msg = #coap_message{} ->
             ?LOG(info, "RECV ~p", [emq_coap_message:format(Msg)]),
-            handle_message(Msg, State);
+            NewTRef = emq_coap_timer:restart_timer(TRef, Interval, keepalive),
+            handle_message(Msg, State#state{tref = NewTRef});
         {'EXIT', {format_error, _}} ->
             ?LOG(error, "receive an error message from ~p: ~p~n", [State#state.endpoint, Packet]),
             {noreply, State}
@@ -142,8 +152,9 @@ handle_info({auto_reply_ack, AckMsg = #coap_message{id = MsgId}, Token}, State =
     AutoReplyAck2 = maps:put(MsgId, {Token, undefined}, AutoReplyAck),
     {noreply, State#state{auto_reply_ack = AutoReplyAck2}};
 
-% handle_info({_, timeout}, State) ->
-%     {noreply, State};
+handle_info(keepalive, State) ->
+    ?LOG(debug, "emq_coap_channel keepalive timeout", []),
+    {stop, normal, State};
 
 handle_info(_Info, State) ->
 	{noreply, State}.
