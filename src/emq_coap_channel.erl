@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {sock, endpoint, next_msg_id, auto_reply_ack, awaiting_ack}).
+-record(state, {sock, endpoint, next_msg_id, auto_reply_ack, awaiting_ack, timer}).
 
 
 -define(ACK_TIMEOUT, 2000).
@@ -40,6 +40,10 @@
 -define(EXCHANGE_LIFETIME, 247000).
 -define(NON_LIFETIME, 145000).
 
+%% ------------------------------------------------------------------
+%% API Function Definitions
+%% ------------------------------------------------------------------
+
 -spec(send_response(pid(), coap_message()) -> ok).
 send_response(Channel, Resp) ->
     gen_server:cast(Channel, {send_response, Resp}).
@@ -48,13 +52,22 @@ send_response(Channel, Resp) ->
 start_link(Sock, Endpoint) ->
 	gen_server:start_link(?MODULE, [Sock, Endpoint], []).
 
+
+%% ------------------------------------------------------------------
+%% gen_server Function Definitions
+%% ------------------------------------------------------------------
+
+
 %% gen_server.
 init([Sock, Endpoint]) ->
+    Interval = application:get_env(?COAP_APP, keepalive, 3600),
     {ok, #state{sock           = Sock, 
                 endpoint       = Endpoint, 
                 next_msg_id    = 0,
                 auto_reply_ack = #{},
-                awaiting_ack   = #{}}}.
+                awaiting_ack   = #{},
+                timer          = emq_coap_timer:start_timer(Interval, keepalive_timer)
+                }}.
 
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.
@@ -75,9 +88,9 @@ handle_cast({send_response, Resp}, State) when Resp#coap_message.type =:= 'RST' 
     send_reset_msg(Resp, State2),
     {noreply, State2#state{next_msg_id = next_msg_id(NextMsgId)}};
 
-handle_cast({send_response, Resp}, State = #state{
-             endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck, 
-             awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
+handle_cast({send_response, Resp},
+            State = #state{endpoint = Endpoint, sock = Sock, auto_reply_ack = AutoReplyAck,
+                            awaiting_ack = AwaitingAck, next_msg_id = NextMsgId}) ->
     {IpAddr, Port} = Endpoint,
     MsgId = Resp#coap_message.id,
     NextMsgId2 = next_msg_id(NextMsgId),
@@ -105,12 +118,13 @@ handle_cast({send_response, Resp}, State = #state{
 handle_cast(_Req, State) ->
 	{noreply, State}.
 
-handle_info({datagram, _From, Packet}, State) ->
+handle_info({datagram, _From, Packet}, State=#state{timer = Timer}) ->
     ?LOG(debug, "RECV udp data ~p", [Packet]),
     case catch(emq_coap_message:parse(Packet)) of
         Msg = #coap_message{} ->
             ?LOG(info, "RECV ~p", [emq_coap_message:format(Msg)]),
-            handle_message(Msg, State);
+            NewTimer = emq_coap_timer:kick_timer(Timer),
+            handle_message(Msg, State#state{timer = NewTimer});
         {'EXIT', {format_error, _}} ->
             ?LOG(error, "receive an error message from ~p: ~p~n", [State#state.endpoint, Packet]),
             {noreply, State}
@@ -142,8 +156,16 @@ handle_info({auto_reply_ack, AckMsg = #coap_message{id = MsgId}, Token}, State =
     AutoReplyAck2 = maps:put(MsgId, {Token, undefined}, AutoReplyAck),
     {noreply, State#state{auto_reply_ack = AutoReplyAck2}};
 
-% handle_info({_, timeout}, State) ->
-%     {noreply, State};
+
+handle_info(keepalive_timer, State=#state{timer = Timer}) ->
+    case emq_coap_timer:is_timeout(Timer) of
+        true ->
+            ?LOG(debug, "emq_coap_channel keepalive timeout", []),
+            {stop, normal, State};
+        false ->
+            NewTimer = emq_coap_timer:restart_timer(Timer),
+            {noreply, State#state{timer = NewTimer}}
+    end;
 
 handle_info(_Info, State) ->
 	{noreply, State}.
@@ -153,6 +175,12 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
+
 
 handle_message(Msg = #coap_message{type = Type}, State) ->
     {noreply, idle(Type, Msg, State)}.

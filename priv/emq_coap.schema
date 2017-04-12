@@ -2,23 +2,7 @@
   {datatype, [integer, ip]}
 ]}.
 
-{mapping, "coap.prefix.$name", "emq_coap.gateway", [
-  {default, ""},
-  {datatype, string}
+{mapping, "coap.keepalive", "emq_coap.keepalive", [
+  {datatype, integer}
 ]}.
 
-{mapping, "coap.handler.$name", "emq_coap.gateway", [
-  {datatype, atom}
-]}.
-
-{translation, "emq_coap.gateway", fun(Conf) ->
-  Prefixs = cuttlefish_variable:filter_by_prefix("coap.prefix", Conf),
-  Handlers = cuttlefish_variable:filter_by_prefix("coap.handler", Conf),
-  Zipped = lists:zip(Prefixs, Handlers),
-  lists:foldl(fun(Item, AccIn) ->
-                     {{_, Prefix}, {_, Handler}} = Item,
-                     [{Prefix, Handler, []} | AccIn]
-              end, 
-              [], 
-              Zipped)
-end}.
