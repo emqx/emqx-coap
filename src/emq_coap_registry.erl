@@ -32,6 +32,12 @@
 -record(state, {}).
 
 -define(RESPONSE_TAB, coap_response_process).
+-define(RESPONSE_REF_TAB, coap_response_process_ref).
+
+%% ------------------------------------------------------------------
+%% API Function Definitions
+%% ------------------------------------------------------------------
+
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -55,25 +61,40 @@ send(Name, Msg) ->
     end.
 
 
+%% ------------------------------------------------------------------
+%% gen_server Function Definitions
+%% ------------------------------------------------------------------
+
 init([]) ->
     ets:new(?RESPONSE_TAB, [set, named_table, protected]),
+    ets:new(?RESPONSE_REF_TAB, [set, named_table, protected]),
     {ok, #state{}}.
 
 handle_call({register_name, Name, Pid}, _From, State) ->
     case ets:member(?RESPONSE_TAB, Name) of
-        false ->    ets:insert(?RESPONSE_TAB, {Name, Pid}),
-                    {reply, yes, State};
+        false ->
+            MRef = monitor_client(Pid),
+            ets:insert(?RESPONSE_TAB, {Name, Pid, MRef}),
+            ets:insert(?RESPONSE_REF_TAB, {MRef, Name, Pid}),
+            {reply, yes, State};
         true  ->   {reply, no, State}
     end;
 
 handle_call({unregister_name, Name}, _From, State) ->
-    ets:delete(?RESPONSE_TAB, Name),
+    case ets:lookup(?RESPONSE_TAB, Name) of
+        [] ->
+            ok;
+        [{Name, _Pid, MRef}] ->
+            erase_monitor(MRef),
+            ets:delete(?RESPONSE_TAB, Name),
+            ets:delete(?RESPONSE_REF_TAB, MRef)
+    end,
 	{reply, ok, State};
 
 handle_call({whereis_name, Name}, _From, State) ->
     case ets:lookup(?RESPONSE_TAB, Name) of
-        [] ->             {reply, undefined, State};
-        [{Name, Pid}] ->  {reply, Pid, State}
+        [] ->                   {reply, undefined, State};
+        [{Name, Pid, _MRef}] -> {reply, Pid, State}
     end;
 
 handle_call(_Request, _From, State) ->
@@ -82,12 +103,38 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
 	{noreply, State}.
 
+
+handle_info({'DOWN', MRef, process, DownPid, _Reason}, State) ->
+    case ets:lookup(?RESPONSE_REF_TAB, MRef) of
+        [{MRef, Name, _Pid}] ->
+            ets:delete(?RESPONSE_TAB, Name),
+            ets:delete(?RESPONSE_REF_TAB, MRef),
+            erase_monitor(MRef);
+        [] ->
+            ?LOG(error, "MRef of client ~p not found", [DownPid])
+    end,
+    {noreply, State};
+
+
 handle_info(_Info, State) ->
 	{noreply, State}.
 
 terminate(_Reason, _State) ->
-	ok.
+    ets:delete(?RESPONSE_TAB),
+    ets:delete(?RESPONSE_REF_TAB),
+    ok.
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 
+
+
+%%--------------------------------------------------------------------
+%% Internal functions
+%%--------------------------------------------------------------------
+
+monitor_client(Pid) ->
+    erlang:monitor(process, Pid).
+
+erase_monitor(MRef) ->
+    catch erlang:demonitor(MRef, [flush]).

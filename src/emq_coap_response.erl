@@ -22,7 +22,7 @@
 
 -include("emq_coap.hrl").
 
--record(state, {uri, handler, ob_state, ob_seq, ob_token, channel, tref, keepalive_interval}).
+-record(state, {uri, handler, ob_state, ob_seq, ob_token, channel, timer}).
 
 %% API.
 -export([get_responder/3]).
@@ -30,6 +30,12 @@
 %% gen_server.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+
+%% ------------------------------------------------------------------
+%% API Function Definitions
+%% ------------------------------------------------------------------
+
 
 get_responder(Channel, Uri, Endpoint) ->
     ?LOG(debug, "get_responder() Channel=~p, Uri=~p, Endpoint=~p", [Channel, Uri, Endpoint]),
@@ -47,12 +53,18 @@ start_link(Channel, Uri, Endpoint, Handler) ->
     ?LOG(debug, "start response Channel=~p, Uri=~p, Endpoint=~p, Handler=~p", [Channel, Uri, Endpoint, Handler]),
     gen_server:start_link({via, emq_coap_registry, {Uri, Endpoint}}, ?MODULE, [Channel, Uri, Handler], []).
 
+
+%% ------------------------------------------------------------------
+%% gen_server Function Definitions
+%% ------------------------------------------------------------------
+
+
 init([Channel, Uri, Handler]) ->
     erlang:monitor(process, Channel),
     Interval = application:get_env(?COAP_APP, keepalive, 3600),
-    TRef = emq_coap_timer:start_timer(Interval, keepalive),
-    {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0, tref = TRef,
-        channel = Channel, keepalive_interval = Interval}}.
+    Timer = emq_coap_timer:start_timer(Interval, keepalive_timer),
+    {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0,
+        channel = Channel, timer = Timer}}.
 
 handle_call(_Msg, _From, State) ->
     {reply, ignored, State}.
@@ -60,31 +72,47 @@ handle_call(_Msg, _From, State) ->
 handle_cast(_Msg, State) ->
     noreply(State).
 
-handle_info({coap_req, Request}, State=#state{tref = TRef, keepalive_interval = Interval}) ->
-    NewTRef = emq_coap_timer:restart_timer(TRef, Interval, keepalive),
-    handle_method(Request, State#state{tref = NewTRef});
+handle_info({coap_req, Request}, State=#state{timer = Timer}) ->
+    NewTimer = emq_coap_timer:kick_timer(Timer),
+    handle_method(Request, State#state{timer = NewTimer});
 
-handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 1, tref = TRef, keepalive_interval = Interval}) ->
+handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 1}) ->
     ?LOG(debug, "dispatch Topic:~p , Msg:~p~n", [Topic, Msg]),
-    NewTRef = emq_coap_timer:restart_timer(TRef, Interval, keepalive),
-    call_handle_info(Topic, Msg, State#state{tref = NewTRef});
+    call_handle_info(Topic, Msg, State);
+handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 0}) ->
+    ?LOG(debug, "discard message from broker topic:~p, payload:~p~n", [Topic, Msg]),
+    noreply(State);
 
 handle_info({'DOWN', _, _, _, _}, State) ->
     {stop, normal, State};
 
-handle_info(keepalive, State) ->
-    ?LOG(debug, "emq_coap_response keepalive timeout", []),
-    {stop, normal, State};
+
+handle_info(keepalive_timer, State=#state{timer = Timer}) ->
+    case emq_coap_timer:is_timeout(Timer) of
+        true ->
+            ?LOG(debug, "emq_coap_channel keepalive_timer timeout", []),
+            {stop, normal, State};
+        false ->
+            ?LOG(debug, "emq_coap_response restart keepalive_timer", []),
+            NewTimer = emq_coap_timer:restart_timer(Timer),
+            {noreply, State#state{timer = NewTimer}}
+    end;
 
 handle_info(Info, State) ->
     ?LOG(error, "Unknown Msg:~p~n", [Info]),
     noreply(State).
 
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{timer = Timer}) ->
+    emq_coap_timer:cancel_timer(Timer),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
+
 
 if_match(#coap_message{options = Options}, #coap_response{etag = ETag}) ->
     case proplists:get_value('If-Match', Options, undefined) of

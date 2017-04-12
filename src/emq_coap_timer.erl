@@ -20,19 +20,32 @@
 
 -include("emq_coap.hrl").
 
--export([cancel_timer/1, start_timer/2, restart_timer/3]).
+-export([cancel_timer/1, start_timer/2, restart_timer/1, kick_timer/1, is_timeout/1]).
 
+-record(timer_state, {interval, kickme, tref, message}).
 
-cancel_timer(TRef) when is_reference(TRef) ->
+cancel_timer(#timer_state{tref = TRef}) when is_reference(TRef) ->
     catch erlang:cancel_timer(TRef),
     ok;
 cancel_timer(_) ->
     ok.
 
-start_timer(Sec, Msg) ->
-    erlang:send_after(timer:seconds(Sec), self(), Msg).
+kick_timer(State) ->
+    ?LOG(debug, "emq_coap_timer:kick_timer", []),
+    State#timer_state{kickme = true}.
 
-restart_timer(TRef, Interval, Msg) ->
-    cancel_timer(TRef),
-    start_timer(Interval, Msg).
+start_timer(Sec, Msg) ->
+    ?LOG(debug, "emq_coap_timer:start_timer ~p", [Sec]),
+    TRef = erlang:send_after(timer:seconds(Sec), self(), Msg),
+    #timer_state{interval = Sec, kickme = false, tref = TRef, message = Msg}.
+
+restart_timer(State=#timer_state{interval = Sec, message = Msg}) ->
+    ?LOG(debug, "emq_coap_timer:restart_timer ~p", [Sec]),
+    TRef = erlang:send_after(timer:seconds(Sec), self(), Msg),
+    State#timer_state{kickme = false, tref = TRef}.
+
+is_timeout(#timer_state{kickme = true}) ->
+    false;
+is_timeout(#timer_state{kickme = false}) ->
+    true.
 
