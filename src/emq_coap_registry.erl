@@ -49,7 +49,10 @@ unregister_name(Name) ->
     gen_server:call(?MODULE, {unregister_name, Name}).
 
 whereis_name(Name) ->
-    gen_server:call(?MODULE, {whereis_name, Name}).
+    case ets:lookup(?RESPONSE_TAB, Name) of
+        [] ->                    undefined;
+        [{Name, Pid, _MRef}] ->  Pid
+    end.
 
 send(Name, Msg) ->
     case whereis_name(Name) of
@@ -90,12 +93,6 @@ handle_call({unregister_name, Name}, _From, State) ->
             ets:delete(?RESPONSE_REF_TAB, MRef)
     end,
 	{reply, ok, State};
-
-handle_call({whereis_name, Name}, _From, State) ->
-    case ets:lookup(?RESPONSE_TAB, Name) of
-        [] ->                   {reply, undefined, State};
-        [{Name, Pid, _MRef}] -> {reply, Pid, State}
-    end;
 
 handle_call(_Request, _From, State) ->
 	{reply, ignored, State}.

@@ -23,10 +23,8 @@
 -include("emq_coap.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-all() ->
-    [case34].
 
-all333() ->
+all() ->
     [
         case01_parser, case02_parser, case03_parser, case04_parser, case05_parser,
         case06_parser, case07_parser, case08_parser, case09_parser, case10_parser,
