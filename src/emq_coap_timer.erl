@@ -30,9 +30,10 @@ cancel_timer(#timer_state{tref = TRef}) when is_reference(TRef) ->
 cancel_timer(_) ->
     ok.
 
-kick_timer(State) ->
-    ?LOG(debug, "emq_coap_timer:kick_timer", []),
-    State#timer_state{kickme = true}.
+kick_timer(State=#timer_state{kickme = false}) ->
+    State#timer_state{kickme = true};
+kick_timer(State=#timer_state{kickme = true}) ->
+    State.
 
 start_timer(Sec, Msg) ->
     ?LOG(debug, "emq_coap_timer:start_timer ~p", [Sec]),
