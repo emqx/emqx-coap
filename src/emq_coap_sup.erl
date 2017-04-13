@@ -33,7 +33,7 @@ init([Listener]) ->
               permanent, infinity, supervisor, [emq_coap_channel_sup]},
     ChMFA = {emq_coap_channel_sup, start_channel, []},
     {ok, {{one_for_all, 10, 3600},
-          [ChSup, ?CHILD(emq_coap_server), listener_child(Listener, ChMFA)]}}.
+          [ChSup, ?CHILD(emq_coap_server), ?CHILD(emq_coap_registry), listener_child(Listener, ChMFA)]}}.
 
 listener_child(Port, ChMFA) ->
     {{coap_listener, coap},

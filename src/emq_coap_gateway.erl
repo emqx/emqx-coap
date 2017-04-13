@@ -27,7 +27,8 @@
 -include_lib("emqttd/include/emqttd.hrl").
 
 handle_request(_Req=#coap_message{method = 'GET'}) ->
-    {notsupport};
+    %% for client keepalive purpose
+    {ok, #coap_response{code = 'Valid'}};
 
 handle_request(#coap_message{method = 'POST', payload = Payload}) ->
     publish(Payload),
@@ -40,6 +41,7 @@ handle_request(_Req = #coap_message{method = 'DELETE'}) ->
     {notsupport}.
 
 handle_observe(Req) ->
+    ?LOG(debug, "handle_observe Req=~p", [Req]),
     Queries = emq_coap_message:get_option(Req, 'Uri-Query'),
     lists:foreach(fun subscribe/1, Queries),
     {ok, #coap_response{code = 'Content', payload = <<"handle_observe">>}}.

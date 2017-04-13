@@ -52,6 +52,7 @@
                      | 'Proxy-Scheme'
                      | 'Size1').
 
+-define(COAP_APP, emq_coap).
 
 -define(LOG(Level, Format, Args),
     lager:Level("CoAP: " ++ Format, Args)).

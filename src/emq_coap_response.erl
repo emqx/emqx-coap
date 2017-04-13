@@ -22,7 +22,7 @@
 
 -include("emq_coap.hrl").
 
--record(state, {uri, handler, ob_state, ob_seq, token, channel}).
+-record(state, {uri, handler, ob_state, ob_seq, ob_token, channel, timer}).
 
 %% API.
 -export([get_responder/3]).
@@ -30,6 +30,12 @@
 %% gen_server.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+
+%% ------------------------------------------------------------------
+%% API Function Definitions
+%% ------------------------------------------------------------------
+
 
 get_responder(Channel, Uri, Endpoint) ->
     ?LOG(debug, "get_responder() Channel=~p, Uri=~p, Endpoint=~p", [Channel, Uri, Endpoint]),
@@ -40,41 +46,73 @@ get_responder(Channel, Uri, Endpoint) ->
                 {error, {already_started, Pid}} -> {ok, Pid};
                 {error, Other} -> {error, Other}
             end;
-       undefined  -> {error, 'NotFound'}
+        undefined  -> {error, 'NotFound'}
     end.
 
 start_link(Channel, Uri, Endpoint, Handler) ->
-    gen_server:start_link({local, name(Uri, Endpoint)}, ?MODULE, [Channel, Uri, Handler], []).
+    ?LOG(debug, "start response Channel=~p, Uri=~p, Endpoint=~p, Handler=~p", [Channel, Uri, Endpoint, Handler]),
+    gen_server:start_link({via, emq_coap_registry, {Uri, Endpoint}}, ?MODULE, [Channel, Uri, Handler], []).
+
+
+%% ------------------------------------------------------------------
+%% gen_server Function Definitions
+%% ------------------------------------------------------------------
+
 
 init([Channel, Uri, Handler]) ->
     erlang:monitor(process, Channel),
-    {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0, channel = Channel}}.
+    Interval = application:get_env(?COAP_APP, keepalive, 3600),
+    Timer = emq_coap_timer:start_timer(Interval, keepalive_timer),
+    {ok, #state{uri = Uri, handler = Handler, ob_state = 0, ob_seq = 0,
+        channel = Channel, timer = Timer}}.
 
 handle_call(_Msg, _From, State) ->
     {reply, ignored, State}.
 
-handle_cast(_Msg, State) -> 
-    {noreply, State}.
+handle_cast(_Msg, State) ->
+    noreply(State).
 
-handle_info({coap_req, Request}, State) ->
-    handle_method(Request, State);
+handle_info({coap_req, Request}, State=#state{timer = Timer}) ->
+    NewTimer = emq_coap_timer:kick_timer(Timer),
+    handle_method(Request, State#state{timer = NewTimer});
 
 handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 1}) ->
     ?LOG(debug, "dispatch Topic:~p , Msg:~p~n", [Topic, Msg]),
     call_handle_info(Topic, Msg, State);
+handle_info({dispatch, Topic, Msg}, State = #state{ob_state = 0}) ->
+    ?LOG(debug, "discard message from broker topic:~p, payload:~p~n", [Topic, Msg]),
+    noreply(State);
 
 handle_info({'DOWN', _, _, _, _}, State) ->
     {stop, normal, State};
 
+
+handle_info(keepalive_timer, State=#state{timer = Timer}) ->
+    case emq_coap_timer:is_timeout(Timer) of
+        true ->
+            ?LOG(debug, "emq_coap_channel keepalive_timer timeout", []),
+            {stop, normal, State};
+        false ->
+            ?LOG(debug, "emq_coap_response restart keepalive_timer", []),
+            NewTimer = emq_coap_timer:restart_timer(Timer),
+            {noreply, State#state{timer = NewTimer}}
+    end;
+
 handle_info(Info, State) ->
     ?LOG(error, "Unknown Msg:~p~n", [Info]),
-    {noreply, State}.
+    noreply(State).
 
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{timer = Timer}) ->
+    emq_coap_timer:cancel_timer(Timer),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
+
 
 if_match(#coap_message{options = Options}, #coap_response{etag = ETag}) ->
     case proplists:get_value('If-Match', Options, undefined) of
@@ -91,86 +129,92 @@ if_none_match(#coap_message{}, _) ->
 
 handle_method(Req = #coap_message{method = Method, options=Options}, State) when is_atom(Method) ->
     case proplists:get_value('Observe', Options) of
-        0 -> call_observe(Req, State);
-        1 -> call_unobserve(Req, State);
-        undefined -> call_handler(Req, State);
-        _ -> return_response(Req, 'BadOption', State)
+        0 ->            call_observe(Req, State);
+        1 ->            call_unobserve(Req, State);
+        undefined ->   call_handler(Req, State);
+        _ ->             noreply( return_response(Req, 'BadOption', State) )
     end;
 
 handle_method(Req, State) ->
-    return_response(Req, 'MethodNotAllowed', State).
+    noreply( return_response(Req, 'MethodNotAllowed', State) ).
 
 call_handler(Req, State = #state{handler = Handler}) ->
     ?LOG(debug, "call_handler() Req=~p, Handler=~p", [Req, Handler]),
     case Handler:handle_request(Req) of
         {ok, Resp}    -> 
             case if_match(Req, Resp) and if_none_match(Req, Resp) of
-                true  -> return_response(Req, Resp, State);
-                false -> return_response(Req, 'PreconditionFailed', State)
+                true  -> noreply( return_response(Req, Resp, State) );
+                false -> noreply( return_response(Req, 'PreconditionFailed', State) )
             end;
         {notsupport} -> return_reset(Req, State);
-        {error, Code} -> return_response(Req, Code, State)
+        {error, Code} -> noreply( return_response(Req, Code, State) )
     end.
 
 call_observe(Req = #coap_message{options = _Options},
              State = #state{handler = Handler, ob_seq = ObSeq, ob_state = 0})->
     case Handler:handle_observe(Req) of
-        {error, Code} -> return_response(Req, Code, State);
+        {error, Code} -> noreply( return_response(Req, Code, State) );
         {ok, _Resp}    -> 
             NextObSeq = next_ob_seq(ObSeq),
             Resp = #coap_response{code = 'Content', payload = Req#coap_message.payload},
-            return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
-            {noreply, State#state{ob_state = 1, token = Req#coap_message.token, ob_seq = NextObSeq}}
+            NewState = return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
+            noreply( NewState#state{ob_state = 1, ob_token = Req#coap_message.token, ob_seq = NextObSeq} )
     end;
 
-call_observe(Req, State = #state{handler = Handler}) ->
-    Handler:handle_observe(Req),
-    return_response(Req, 'Content', State).
+call_observe(Req, State = #state{ob_state = 1})->
+    % already in observation state, no 2nd observe is allowed
+    ?LOG(warning, "discard second observe request", []),
+    noreply( return_response(Req, 'BadRequest', State) ).
+
 
 call_unobserve(Req, State = #state{handler = Handler, ob_state = 1, ob_seq = ObSeq}) ->
     ?LOG(debug, "call_unobserve() Req=~p, Handler=~p", [Req, Handler]),
     case Handler:handle_unobserve(Req) of
-        {error, Code} -> return_response(Req, Code, State);
+        {error, Code} -> noreply( return_response(Req, Code, State) );
         {ok, _Resp}   ->
             NextObSeq = next_ob_seq(ObSeq),
             Resp = #coap_response{code = 'Content'},
-            return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
-            {noreply, State#state{ob_state = 0, token = undefined}}
+            NewState = return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
+            noreply( NewState#state{ob_state = 0, ob_token = undefined} )
     end;
 
-call_unobserve(Req, State = #state{handler = Handler}) ->
-    Handler:handle_unobserve(Req),
-    return_response(Req, 'Content', State).
+call_unobserve(Req, State = #state{ob_state = 0}) ->
+    ?LOG(warning, "discard unobserve request since observe is not set", []),
+    noreply( return_response(Req, 'BadRequest', State) ).
 
 call_handle_info(Topic, Msg, State = #state{handler = Handler}) ->
     case Handler:handle_info(Topic, Msg) of
-        ok         -> {noreply, State};
+        ok         -> noreply(State);
         {ok, Resp} -> observe_notify(Resp, State)
     end.
 
-observe_notify(Resp =  #coap_response{}, State = #state{token = Token, ob_seq = ObSeq}) ->
+observe_notify(Msg, State = #state{ob_state = 0}) ->
+    ?LOG(info, "discard notification since observation is not set, ~p", [Msg]),
+    noreply(State);
+
+observe_notify(Resp =  #coap_response{}, State = #state{ob_token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
     Req = #coap_message{type = 'CON', token = Token},
     Resp2 = Resp#coap_response{code = 'Content'},
-    return_response(Req, Resp2, State, [{'Observe', NextObSeq}]),
-    {noreply, State#state{ob_seq = NextObSeq}};
+    NewState = return_response(Req, Resp2, State, [{'Observe', NextObSeq}]),
+    noreply(NewState#state{ob_seq = NextObSeq});
 
-observe_notify(Msg, State = #state{token = Token, ob_seq = ObSeq}) ->
+observe_notify(Msg, State = #state{ob_token = Token, ob_seq = ObSeq}) ->
     NextObSeq = next_ob_seq(ObSeq),
     Req = #coap_message{type = 'CON', token = Token},
     Resp = #coap_response{code = 'Content', payload = Msg},
-    return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
-    {noreply, State#state{ob_seq = NextObSeq}}.
+    NewState = return_response(Req, Resp, State, [{'Observe', NextObSeq}]),
+    noreply(NewState#state{ob_seq = NextObSeq}).
 
 return_reset(Req, State = #state{channel = Channel}) ->
     Resp = #coap_message{type = 'RST', code = 0, id = Req#coap_message.id},
     emq_coap_channel:send_response(Channel, Resp),
-    {noreply, State}.
+    noreply(State).
 
 return_response(Req, Code, State = #state{channel = Channel}) when is_atom(Code) ->
     Resp = #coap_message{type = Req#coap_message.type, code = Code, id = Req#coap_message.id},
     emq_coap_channel:send_response(Channel, Resp),
-    {noreply, State};
+    State;
 return_response(Req, Resp, State) ->
     return_response(Req, Resp, State, []).
 
@@ -188,14 +232,16 @@ return_response(Req = #coap_message{options = Options},
                 id      = Req#coap_message.id, 
                 token   = Req#coap_message.token,
                 payload = Resp#coap_response.payload},
-    
+    ?LOG(debug, "return_response Resp=~p", [Resp3]),
     emq_coap_channel:send_response(Channel, Resp3),
-    {noreply, State}.
+    State.
 
 next_ob_seq(16#FFFFFF) ->
     0;
 next_ob_seq(ObSeq) ->
     ObSeq + 1.
 
-name(Uri, Endpoint) ->
-    list_to_atom(lists:concat([?MODULE, "_",emqttd_net:format(Endpoint), Uri])).
+noreply(State) ->
+    {noreply, State}.
+
+

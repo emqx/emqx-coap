@@ -21,11 +21,19 @@
 -define(PORT, 5683).
 
 -include("emq_coap.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
 
 all() ->
-    [case01_parser, case02_parser, case03_parser, case04_parser, case05_parser, case06_parser, case07_parser, case08_parser, case09_parser, case10_parser, case11_parser, case12_parser,
-     case20_format_error, case21_format_error, case22_format_error,
-        case30, case31, case32, case33].
+    [
+        case01_parser, case02_parser, case03_parser, case04_parser, case05_parser,
+        case06_parser, case07_parser, case08_parser, case09_parser, case10_parser,
+        case11_parser, case12_parser,
+
+        case20_format_error, case21_format_error, case22_format_error,
+
+        case30, case31, case32, case33, case34
+    ].
 
 
 init_per_suite(Config) ->
@@ -316,6 +324,50 @@ case33(_Config) ->
     application:stop(emq_coap).
 
 
+case34(_Config) ->
+    ok = application:set_env(?COAP_APP, keepalive, 2),
+    What = application:start(emq_coap),
+    io:format("What=~p", [What]),
+    ok = What,
+    test_broker_api:start_link(),
+
+    {ok, USock} = gen_udp:open(0, [binary, {active, false}]),
+    Topic = <<"/abc/X7yz">>,
+    Topic1 = encode(Topic),
+    Token = <<3, 5>>,
+    CoapSubscribeMsg = #coap_message{type = 'CON',code = 'GET', id = 35, token = Token,
+                                        options = [{'Uri-Host', "localhost"},
+                                                   {'Uri-Path', "mqtt"},
+                                                   {'Uri-Query', binary_to_list(<<"topic=", Topic1/binary>>)},
+                                                   {'Observe', 0}]},
+    Msg = emq_coap_message:serialize_request(CoapSubscribeMsg),
+    gen_udp:send(USock, "localhost", ?PORT, Msg),
+    timer:sleep(200),
+    {ok, {_Address, _Port, Packet}} = gen_udp:recv(USock, 256),
+    CoapMsg = emq_coap_message:parse(Packet),
+    ?assertEqual(#coap_message{type = 'ACK',token = Token, code = {2, 5}, id = 35, options = [{'Observe', 1}]}, CoapMsg),
+    SubTopic = test_broker_api:get_subscrbied_topic(),
+    ?assertEqual(Topic, SubTopic),
+
+    %% broker try to dispatch message
+    test_broker_api:dispatch(<<"/abc/X7yz">>, <<"900">>),
+    timer:sleep(200),
+    {ok, {_Address, _Port, Packet3}} = gen_udp:recv(USock, 256),
+    CoapRcvedDispatchMsg = emq_coap_message:parse(Packet3),
+    ?assertEqual(#coap_message{type = 'CON', code = {2, 5}, id = 1, token = Token, options = [{'Observe', 2}], payload = <<"topic=/abc/X7yz&message=900">>}, CoapRcvedDispatchMsg),
+
+    % wait long enough, let emq_coap_channel and emq_coap_reponse become timeout and quit
+    timer:sleep(5000),
+
+    %% broker try to dispatch message again, client should receive nothing
+    test_broker_api:dispatch(<<"/abc/X7yz">>, <<"900">>),
+    timer:sleep(200),
+    UdpRet = gen_udp:recv(USock, 256, 1000),
+    ?assertEqual({error, timeout}, UdpRet),
+
+    gen_udp:close(USock),
+    test_broker_api:stop(),
+    application:stop(emq_coap).
 
 
 
