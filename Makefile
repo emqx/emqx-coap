@@ -1,6 +1,6 @@
 PROJECT = emq_coap
 PROJECT_DESCRIPTION = CoAP Gateway
-PROJECT_VERSION = 2.1.2
+PROJECT_VERSION = 2.2
 
 DEPS = cbor lager esockd
 
@@ -10,7 +10,7 @@ dep_esockd   = git https://github.com/emqtt/esockd master
 dep_mochiweb = git https://github.com/emqtt/mochiweb master
 
 BUILD_DEPS = emqttd cuttlefish
-dep_emqttd = git https://github.com/emqtt/emqttd master
+dep_emqttd = git https://github.com/emqtt/emqttd emq22
 dep_cuttlefish = git https://github.com/emqtt/cuttlefish
 
 ERLC_OPTS += +'{parse_transform, lager_transform}'
