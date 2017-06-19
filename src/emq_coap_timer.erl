@@ -24,6 +24,11 @@
 
 -record(timer_state, {interval, kickme, tref, message}).
 
+-define(LOG(Level, Format, Args),
+    lager:Level("CoAP-TIMER: " ++ Format, Args)).
+
+
+
 cancel_timer(#timer_state{tref = TRef}) when is_reference(TRef) ->
     catch erlang:cancel_timer(TRef),
     ok;

@@ -19,16 +19,20 @@
 -author("Feng Lee <feng@emqtt.io>").
 
 -behaviour(application).
+-export([start/2, stop/1]).
 
 -include("emq_coap.hrl").
--export([start/2, stop/1]).
 
 
 start(_Type, _Args) ->
-    Ret = emq_coap_sup:start_link(application:get_env(?COAP_APP, listener, 5683)),
-    emq_coap_server:register_handler("mqtt", emq_coap_gateway),
-    Ret.
+    Port = application:get_env(?APP, port, 5683),
+    Pid = emq_coap_sup:start_link(),
+    emq_coap_server:start(Port),
+    Pid.
 
 stop(_State) ->
-    ok.
+    emq_coap_server:stop().
+
+
+
 

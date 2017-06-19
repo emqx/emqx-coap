@@ -20,77 +20,37 @@
 
 -include("emq_coap.hrl").
 
--behaviour(gen_server).
+-export([start/0, start/1, stop/0]).
 
-%% API.
--export([start_link/0, register_handler/2, match_handler/1, unregister_handler/1]).
+-define(LOG(Level, Format, Args),
+    lager:Level("CoAP: " ++ Format, Args)).
 
-%% gen_server.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
 
--record(state, {}).
+start() ->
+    start(5683).
 
--define(HANDLER_TAB, coap_handler).
+start(Port) ->
+    coap_server:start(),
+    {ok, _} = coap_server:start_udp(coap_udp_socket, Port),
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    CertFile = application:get_env(?APP, certfile, ""),
+    KeyFile = application:get_env(?APP, keyfile, ""),
+    case (filelib:is_regular(CertFile) and filelib:is_regular(KeyFile)) of
+        true ->
+            {ok, _} = coap_server:start_dtls(coap_dtls_socket, [{certfile, CertFile}, {keyfile, KeyFile}]);
+        false ->
+            ?LOG(error, "certfile ~p or keyfile ~p are not valid, turn off coap DTLS", [CertFile, KeyFile])
+    end,
 
--spec(register_handler(list(binary()), module()) -> ok | {error, duplicated}).
-register_handler(Prefix, Handler) ->
-    gen_server:call(?MODULE, {register, Prefix, Handler}).
+    coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined).
 
--spec(match_handler(list(binary())) -> {ok, module()} | undefined).
-match_handler(Uri) -> match_handler(Uri, ets:tab2list(?HANDLER_TAB)).
+stop() ->
+    coap_server:stop(undefined).
 
-match_handler(_Uri, []) ->
-    undefined;
-match_handler(Uri, [{Prefix, Handler} | T]) ->
-    case match_prefix(Prefix, Uri) of
-        true  -> {ok, Handler};
-        false -> match_handler(Uri, T)
-    end.
 
-match_prefix([], []) ->
-    true;
-match_prefix([], _) ->
-    true;
-match_prefix([H|T1], [H|T2]) ->
-    match_prefix(T1, T2);
-match_prefix(_Prefix, _Uri) ->
-    false.
 
--spec(unregister_handler(list(binary())) -> ok).
-unregister_handler(Prefix) ->
-    gen_server:call(?MODULE, {unregister, Prefix}).
 
-init([]) ->
-    ets:new(?HANDLER_TAB, [set, named_table, protected]),
-    {ok, #state{}}.
+% end of file
 
-handle_call({register, Prefix, Handler}, _From, State) ->
-    case ets:member(?HANDLER_TAB, Prefix) of
-        true  -> {reply, {error, duplicated}, State};
-        false -> ets:insert(?HANDLER_TAB, {Prefix, Handler}),
-                 {reply, ok, State}
-    end;
 
-handle_call({unregister, Prefix}, _From, State) ->
-    ets:delete(?HANDLER_TAB, Prefix),
-	{reply, ok, State};
-
-handle_call(_Request, _From, State) ->
-	{reply, ignored, State}.
-
-handle_cast(_Msg, State) ->
-	{noreply, State}.
-
-handle_info(_Info, State) ->
-	{noreply, State}.
-
-terminate(_Reason, _State) ->
-	ok.
-
-code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
 
