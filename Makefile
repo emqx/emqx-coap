@@ -1,15 +1,16 @@
 PROJECT = emq_coap
 PROJECT_DESCRIPTION = CoAP Gateway
-PROJECT_VERSION = 0.2.7
+PROJECT_VERSION = 2.2
 
 DEPS = lager gen_coap
 dep_lager    = git https://github.com/basho/lager
 dep_gen_coap = git https://github.com/gotthardp/gen_coap
 
 BUILD_DEPS = emqttd cuttlefish
-dep_emqttd     = git https://github.com/emqtt/emqttd master
+dep_emqttd = git https://github.com/emqtt/emqttd emq22
 dep_cuttlefish = git https://github.com/emqtt/cuttlefish
 
+ERLC_OPTS += +debug_info
 ERLC_OPTS += +'{parse_transform, lager_transform}'
 TEST_ERLC_OPTS += +'{parse_transform, lager_transform}'
 
