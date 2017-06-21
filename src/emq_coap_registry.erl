@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 
 %% API.
--export([start_link/0, register_name/2, unregister_name/1, whereis_name/1, send/2]).
+-export([start_link/0, register_name/2, unregister_name/1, whereis_name/1, send/2, stop/0]).
 
 %% gen_server.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -33,6 +33,10 @@
 
 -define(RESPONSE_TAB, coap_response_process).
 -define(RESPONSE_REF_TAB, coap_response_process_ref).
+
+-define(LOG(Level, Format, Args),
+    lager:Level("CoAP-REG: " ++ Format, Args)).
+
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -62,6 +66,9 @@ send(Name, Msg) ->
             Pid ! Msg,
             Pid
     end.
+
+stop() ->
+    gen_server:stop(?MODULE).
 
 
 %% ------------------------------------------------------------------

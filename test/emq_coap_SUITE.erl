@@ -1,0 +1,397 @@
+%%--------------------------------------------------------------------
+%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%% 
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%--------------------------------------------------------------------
+
+-module(emq_coap_SUITE).
+
+-compile(export_all).
+
+-define(PORT, 5683).
+
+-define(LOGT(Format, Args), lager:debug("TEST_SUITE: " ++ Format, Args)).
+
+
+-include_lib("gen_coap/include/coap.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+
+all() -> [case01, case02, case03, case04, case05, case06_keepalive, case07_one_clientid_sub_2_topics,
+    case10_auth_failure, case11_invalid_parameter, case12_invalid_topic].
+
+
+
+init_per_suite(Config) ->
+    lager_common_test_backend:bounce(debug),
+    Config.
+
+end_per_suite(Config) ->
+    Config.
+
+
+case01(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+    Topic = <<"abc">>, Payload = <<"123">>,
+    TopicStr = binary_to_list(Topic),
+    URI = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
+    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    {ok,changed, _} = Reply,
+    timer:sleep(50),
+    PubMsg = test_mqtt_broker:get_published_msg(),
+    ?LOGT("PubMsg=~p, Reply=~p~n", [PubMsg, Reply]),
+    ?assertEqual({Topic, Payload}, PubMsg),
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+case02(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    Topic = <<"abc">>, TopicStr = binary_to_list(Topic),
+    Payload = <<"123">>,
+    Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
+    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
+
+    timer:sleep(100),
+    SubTopics = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([Topic], SubTopics),
+
+    test_mqtt_broker:dispatch(Topic, Payload, Topic),
+    Notif = receive_notification(),
+    ?LOGT("observer get Notif=~p", [Notif]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
+
+    ?_assertEqual(Payload, PayloadRecv),
+
+    coap_observer:stop(Pid),
+    timer:sleep(100),
+    SubTopics2 = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([], SubTopics2),
+
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+case03(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% subscribe a wild char topic
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
+    Payload = <<"123">>,
+    Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
+    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
+
+    timer:sleep(100),
+    SubTopic = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([Topic], SubTopic),
+
+    test_mqtt_broker:dispatch(<<"a/b">>, Payload, Topic),
+    Notif = receive_notification(),
+    ?LOGT("observer get Notif=~p", [Notif]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
+    ?_assertEqual(Payload, PayloadRecv),
+
+    coap_observer:stop(Pid),
+    timer:sleep(100),
+    SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([], SubTopic2),
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+case04(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% subscribe a wild char topic
+    %% publish 2 topics
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
+    Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
+    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
+
+    timer:sleep(100),
+    SubTopic = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([Topic], SubTopic),
+
+
+
+    Topic2 = <<"a/b">>, Payload2 = <<"UFO">>,
+    TopicStr2 = http_uri:encode(binary_to_list(Topic2)),
+    URI2 = "coap://127.0.0.1/mqtt/"++TopicStr2++"?c=client1&u=tom&p=secret",
+    Reply2 = coap_client:request(put, URI2, #coap_content{format = <<"application/octet-stream">>, payload = Payload2}),
+    {ok,changed, _} = Reply2,
+    timer:sleep(50),
+    PubMsg2 = test_mqtt_broker:get_published_msg(),
+    ?LOGT("PubMsg=~p, Reply=~p~n", [PubMsg2, Reply2]),
+    ?assertEqual({Topic2, Payload2}, PubMsg2),
+
+    test_mqtt_broker:dispatch(Topic2, Payload2, Topic),
+    Notif2 = receive_notification(),
+    ?LOGT("observer get Notif2=~p", [Notif2]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv2}} = Notif2,
+    ?_assertEqual(Payload2, PayloadRecv2),
+
+
+    Topic3 = <<"j/b">>, Payload3 = <<"ET629">>,
+    TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
+    URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=mike&p=guess",
+    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    {ok,changed, _} = Reply3,
+    timer:sleep(50),
+    PubMsg3 = test_mqtt_broker:get_published_msg(),
+    ?LOGT("PubMsg=~p, Reply=~p~n", [PubMsg3, Reply3]),
+    ?assertEqual({Topic3, Payload3}, PubMsg3),
+
+    test_mqtt_broker:dispatch(Topic3, Payload3, Topic),
+    Notif3 = receive_notification(),
+    ?LOGT("observer get Notif3=~p", [Notif3]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv3}} = Notif3,
+    ?_assertEqual(Payload3, PayloadRecv3),
+
+
+    coap_observer:stop(Pid),
+    timer:sleep(100),
+    SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([], SubTopicFinal),
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+
+case05(_Config) ->
+    {ok, _} = application:ensure_all_started(emq_coap),
+    ?LOGT("Started", []),
+    timer:sleep(100),
+    application:stop(emq_coap),
+    application:stop(gen_coap),
+    application:stop(crypto),
+    application:stop(ssl).
+
+
+
+case06_keepalive(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
+    Payload = <<"123">>,
+    Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
+    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
+
+    timer:sleep(100),
+    SubTopic = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([Topic], SubTopic),
+
+    timer:sleep(2000),
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % keepalive action should lead to nothing
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    URI3 = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
+    Reply3 = coap_client:request(get, URI3),
+    ?assertMatch({ok,content, _}, Reply3),
+    timer:sleep(50),
+    PubMsg3 = test_mqtt_broker:get_published_msg(),
+    ?assertEqual(undefined, PubMsg3),
+
+
+    test_mqtt_broker:dispatch(<<"a/b">>, Payload, Topic),
+    Notif = receive_notification(),
+    ?LOGT("observer get Notif=~p", [Notif]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
+    ?_assertEqual(Payload, PayloadRecv),
+
+    coap_observer:stop(Pid),
+    timer:sleep(100),
+    SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([], SubTopicFinal),
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+
+case07_one_clientid_sub_2_topics(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    Topic1 = <<"abc">>, TopicStr1 = binary_to_list(Topic1),
+    Payload1 = <<"123">>,
+    Uri1 = "coap://127.0.0.1/mqtt/"++TopicStr1++"?c=client1&u=tom&p=secret",
+    {ok, Pid1, N1, Code1, Content1} = coap_observer:observe(Uri1),
+    ?LOGT("observer 1 Pid=~p, N=~p, Code=~p, Content=~p", [Pid1, N1, Code1, Content1]),
+    timer:sleep(100),
+    SubTopic1 = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([Topic1], SubTopic1),
+
+
+
+    Topic2 = <<"x/y">>, TopicStr2 = http_uri:encode(binary_to_list(Topic2)),
+    Payload2 = <<"456">>,
+    Uri2 = "coap://127.0.0.1/mqtt/"++TopicStr2++"?c=client1&u=tom&p=secret",
+    {ok, Pid2, N2, Code2, Content2} = coap_observer:observe(Uri2),
+    ?LOGT("observer 2 Pid=~p, N=~p, Code=~p, Content=~p", [Pid2, N2, Code2, Content2]),
+    timer:sleep(100),
+    SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([Topic1, Topic2], SubTopic2),
+
+
+
+    test_mqtt_broker:dispatch(Topic1, Payload1, Topic1),
+    Notif1 = receive_notification(),
+    ?LOGT("observer 1 get Notif=~p", [Notif1]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv1}} = Notif1,
+    ?_assertEqual(Payload1, PayloadRecv1),
+
+
+    test_mqtt_broker:dispatch(Topic2, Payload2, Topic2),
+    Notif2 = receive_notification(),
+    ?LOGT("observer 2 get Notif=~p", [Notif2]),
+    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv2}} = Notif2,
+    ?_assertEqual(Payload2, PayloadRecv2),
+
+
+    coap_observer:stop(Pid1),
+    coap_observer:stop(Pid2),
+    timer:sleep(100),
+    SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
+    ?_assertEqual([], SubTopicFinal),
+
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+
+case10_auth_failure(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% username is "attacker", auth failure required
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
+    TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
+    URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=attacker&p=guess",
+    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    ?assertMatch({error,uauthorized}, Reply3),
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+case11_invalid_parameter(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% "cid=client2" is invaid
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
+    TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
+    URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?cid=client2&u=tom&p=simple",
+    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    ?assertMatch({error,bad_request}, Reply3),
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% "what=hello" is invaid
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    URI4 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?what=hello",
+    Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    ?assertMatch({error, bad_request}, Reply4),
+
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+
+case12_invalid_topic(_Config) ->
+    test_mqtt_broker:start_link(),
+    emq_coap_registry:start_link(),
+    emq_coap_server:start(),
+    timer:sleep(100),
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% "a/b" is not invaid, "a%02Fb" is a valid topic string
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
+    TopicStr3 = binary_to_list(Topic3),
+    URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=tom&p=simple",
+    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    ?assertMatch({error,bad_request}, Reply3),
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% "+?#" is invaid topic string
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    URI4 = "coap://127.0.0.1/mqtt/"++"+?#"++"?what=hello",
+    Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    ?assertMatch({error,bad_request}, Reply4),
+
+
+    emq_coap_server:stop(),
+    emq_coap_registry:stop(),
+    test_mqtt_broker:stop().
+
+
+receive_notification() ->
+    receive
+        {coap_notify, Pid, N2, Code2, Content2} ->
+            {coap_notify, Pid, N2, Code2, Content2}
+    after 2000 ->
+        receive_notification_timeout
+    end.
+
+
+
