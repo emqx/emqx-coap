@@ -27,7 +27,8 @@
 
 
 start() ->
-    start(5683).
+    Port = application:get_env(?APP, port, 5683),
+    start(Port).
 
 start(Port) ->
     coap_server:start(),

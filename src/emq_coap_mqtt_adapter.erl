@@ -67,10 +67,10 @@ client_pid(undefined, _Username, _Password, _Channel) ->
 client_pid(ClientId, Username, Password, Channel) ->
     % check authority
     case start(ClientId, Username, Password, Channel) of
-        {ok, Pid1}                      -> {ok, Pid1};
-        {error, {already_started,Pid2}} -> {ok, Pid2};
-        {error, auth_failure}           -> {error, auth_failure};
-        Other                           -> {error, Other}
+        {ok, Pid1}                       -> {ok, Pid1};
+        {error, {already_started, Pid2}} -> {ok, Pid2};
+        {error, auth_failure}            -> {error, auth_failure};
+        Other                            -> {error, Other}
     end.
 
 start(ClientId, Username, Password, Channel) ->

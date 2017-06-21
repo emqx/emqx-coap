@@ -50,8 +50,6 @@ restart_timer(State=#timer_state{interval = Sec, message = Msg}) ->
     TRef = erlang:send_after(timer:seconds(Sec), self(), Msg),
     State#timer_state{kickme = false, tref = TRef}.
 
-is_timeout(#timer_state{kickme = true}) ->
-    false;
-is_timeout(#timer_state{kickme = false}) ->
-    true.
+is_timeout(#timer_state{kickme = Bool}) ->
+    not Bool.
 
