@@ -1,8 +1,19 @@
-{mapping, "coap.server", "emq_coap.listener", [
-  {datatype, [integer, ip]}
+{mapping, "coap.port", "emq_coap.port", [
+  {datatype, integer}
 ]}.
 
+
 {mapping, "coap.keepalive", "emq_coap.keepalive", [
-  {datatype, integer}
+  {default, "120s"},
+  {datatype, {duration, s}}
+]}.
+
+
+{mapping, "coap.keyfile", "emq_coap.keyfile", [
+  {datatype, string}
+]}.
+
+{mapping, "coap.certfile", "emq_coap.certfile", [
+  {datatype, string}
 ]}.
 
