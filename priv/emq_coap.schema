@@ -2,8 +2,10 @@
   {datatype, integer}
 ]}.
 
+
 {mapping, "coap.keepalive", "emq_coap.keepalive", [
-  {datatype, integer}
+  {default, "120s"},
+  {datatype, {duration, s}}
 ]}.
 
 
