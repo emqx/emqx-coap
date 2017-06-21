@@ -36,7 +36,7 @@ start(Port) ->
 
     CertFile = application:get_env(?APP, certfile, ""),
     KeyFile = application:get_env(?APP, keyfile, ""),
-    case (filelib:is_regular(CertFile) and filelib:is_regular(KeyFile)) of
+    case (filelib:is_regular(CertFile) andalso filelib:is_regular(KeyFile)) of
         true ->
             {ok, _} = coap_server:start_dtls(coap_dtls_socket, [{certfile, CertFile}, {keyfile, KeyFile}]);
         false ->
