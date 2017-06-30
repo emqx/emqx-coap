@@ -19,7 +19,7 @@
 -author("Feng Lee <feng@emqtt.io>").
 
 -behaviour(application).
--export([start/2, stop/1]).
+-export([start/2, stop/1, prep_stop/1]).
 
 -include("emq_coap.hrl").
 
@@ -30,8 +30,13 @@ start(_Type, _Args) ->
     emq_coap_server:start(Port),
     Pid.
 
+prep_stop(State) ->
+    emq_coap_server:stop(),
+    State.
+
+
 stop(_State) ->
-    emq_coap_server:stop().
+    ok.
 
 
 

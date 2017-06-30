@@ -164,6 +164,10 @@ The output message is not well formatted which hide "1234567" at the head of the
 emq_coap gateway does not accept POST and DELETE request.
 
 
+## Known Issues
+- Upon unloading emq-coap plugin, udp dtls port (5884 by default) could not be closed properly.
+  + The only way to turn off dtls port is restarting EMQ broker.
+
 
 License
 -------

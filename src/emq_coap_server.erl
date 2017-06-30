@@ -45,7 +45,10 @@ start(Port) ->
 
     coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined).
 
+
 stop() ->
+    coap_server:stop_udp(coap_udp_socket),
+    coap_server:stop_dtls(coap_dtls_socket),
     coap_server:stop(undefined).
 
 
