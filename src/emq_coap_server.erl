@@ -32,20 +32,23 @@ start() ->
 
 start(Port) ->
     coap_server:start(),
-    {ok, _} = coap_server:start_udp(coap_udp_socket, Port),
+    coap_server:start_udp(coap_udp_socket, Port),
 
     CertFile = application:get_env(?APP, certfile, ""),
     KeyFile = application:get_env(?APP, keyfile, ""),
     case (filelib:is_regular(CertFile) andalso filelib:is_regular(KeyFile)) of
         true ->
-            {ok, _} = coap_server:start_dtls(coap_dtls_socket, [{certfile, CertFile}, {keyfile, KeyFile}]);
+            coap_server:start_dtls(coap_dtls_socket, [{certfile, CertFile}, {keyfile, KeyFile}]);
         false ->
             ?LOG(error, "certfile ~p or keyfile ~p are not valid, turn off coap DTLS", [CertFile, KeyFile])
     end,
 
     coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined).
 
+
 stop() ->
+    coap_server:stop_udp(coap_udp_socket),
+    coap_server:stop_dtls(coap_dtls_socket),
     coap_server:stop(undefined).
 
 

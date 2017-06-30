@@ -7,7 +7,7 @@ LIBCOAP_GIT  = libcoap/README.md
 
 
 
-all:  clean_result $(RELX_CONF) $(LIBCOAP_GIT) start_broker clean_result case1  case2  case3 stop_broker
+all:  clean_result $(RELX_CONF) $(LIBCOAP_GIT) start_broker clean_result case1  case2  case3 case4 stop_broker
 	@echo "  "
 	@echo "  test complete"
 	@echo "  "
@@ -54,6 +54,23 @@ case3:
 	sleep 6
 	python check_result.py case3 case3_output1.txt==black2ant  case3_output2.txt==big9wolf  case3_output2.txt!=black2ant
 	
+
+
+case4:
+	# reload emq_coap, does it work as expected?
+	sleep 1
+	emq-relx/_rel/emqttd/bin/emqttd_ctl plugins unload emq_coap
+	sleep 1
+	emq-relx/_rel/emqttd/bin/emqttd_ctl plugins load emq_coap
+	sleep 1
+	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret" > case4_output.txt &
+	sleep 1
+	libcoap/examples/coap-client -m put -e w6J3G45 "coap://127.0.0.1/mqtt/topic1?c=client2&u=mike&p=pw12"
+	sleep 6
+	python check_result.py  case1  case4_output.txt==w6J3G45
+
+
+
 	
 $(RELX_CONF):
 	git clone https://github.com/emqtt/emq-relx.git
