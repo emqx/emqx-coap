@@ -31,7 +31,7 @@ start() ->
     start(Port).
 
 start(Port) ->
-    coap_server:start(),
+    application:start(gen_coap),
     coap_server:start_udp(coap_udp_socket, Port),
 
     CertFile = application:get_env(?APP, certfile, ""),
@@ -47,14 +47,7 @@ start(Port) ->
 
 
 stop() ->
-    coap_server:stop_udp(coap_udp_socket),
-    coap_server:stop_dtls(coap_dtls_socket),
-    coap_server:stop(undefined).
-
-
-
+    spawn(fun() -> group_leader(whereis(init), application:stop(gen_coap)) end). 
 
 % end of file
-
-
 
