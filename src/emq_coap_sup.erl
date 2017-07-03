@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,14 +16,11 @@
 
 -module(emq_coap_sup).
 
--author("Feng Lee <feng@emqtt.io>").
-
 -behaviour(supervisor).
 
 -export([start_link/0, init/1]).
 
 -define(CHILD(M), {M, {M, start_link, []}, permanent, 5000, worker, [M]}).
-
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).

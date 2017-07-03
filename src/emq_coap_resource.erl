@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,25 +16,23 @@
 
 -module(emq_coap_resource).
 
--author("Feng Lee <feng@emqtt.io>").
-
--include_lib("emqttd/include/emqttd.hrl").
--include_lib("emqttd/include/emqttd_protocol.hrl").
--include_lib("gen_coap/include/coap.hrl").
-
-
 -behaviour(coap_resource).
 
--export([coap_discover/2, coap_get/4, coap_post/4, coap_put/4, coap_delete/3,
-    coap_observe/4, coap_unobserve/1, handle_info/2, coap_ack/2]).
-
 -include("emq_coap.hrl").
+
+-include_lib("gen_coap/include/coap.hrl").
+
+-include_lib("emqttd/include/emqttd.hrl").
+
+-include_lib("emqttd/include/emqttd_protocol.hrl").
+
+-export([coap_discover/2, coap_get/4, coap_post/4, coap_put/4, coap_delete/3,
+         coap_observe/4, coap_unobserve/1, handle_info/2, coap_ack/2]).
 
 -define(MQTT_PREFIX, [<<"mqtt">>]).
 
 -define(LOG(Level, Format, Args),
     lager:Level("CoAP-RES: " ++ Format, Args)).
-
 
 % resource operations
 coap_discover(_Prefix, _Args) ->
@@ -61,7 +59,6 @@ coap_get(ChId, ?MQTT_PREFIX, Name, Query) ->
 coap_get(ChId, Prefix, Name, Query) ->
     ?LOG(error, "ignore bad put request ChId=~p, Prefix=~p, Name=~p, Query=~p", [ChId, Prefix, Name, Query]),
     {error, bad_request}.
-
 
 coap_post(_ChId, _Prefix, _Name, _Content) ->
     {error, method_not_allowed}.
@@ -96,7 +93,6 @@ coap_unobserve({state, ChId, Prefix, Name}) ->
     ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Name=~p", [ChId, Prefix, Name]),
     ok.
 
-
 handle_info({dispatch, Topic, Payload}, State) ->
     ?LOG(debug, "dispatch Topic=~p, Payload=~p", [Topic, Payload]),
     {notify, [], #coap_content{format = <<"application/octet-stream">>, payload = Payload}, State};
@@ -105,8 +101,6 @@ handle_info(Message, State) ->
     {noreply, State}.
 
 coap_ack(_Ref, State) -> {ok, State}.
-
-
 
 get_auth(Query) ->
     get_auth(Query, #coap_mqtt_auth{}).
@@ -123,13 +117,5 @@ get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     ?LOG(error, "ignore unknown parameter ~p", [Param]),
     get_auth(T, Auth).
 
-
 topic(TopicBinary) ->
-    TopicString = http_uri:decode(binary_to_list(TopicBinary)),
-    list_to_binary(TopicString).
-
-
-% end of file
-
-
-
+    list_to_binary(http_uri:decode(binary_to_list(TopicBinary))).

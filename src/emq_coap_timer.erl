@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 -module(emq_coap_timer).
 
--author("Feng Lee <feng@emqtt.io>").
-
 -include("emq_coap.hrl").
 
 -export([cancel_timer/1, start_timer/2, restart_timer/1, kick_timer/1, is_timeout/1]).
@@ -26,8 +24,6 @@
 
 -define(LOG(Level, Format, Args),
     lager:Level("CoAP-TIMER: " ++ Format, Args)).
-
-
 
 cancel_timer(#timer_state{tref = TRef}) when is_reference(TRef) ->
     catch erlang:cancel_timer(TRef),
