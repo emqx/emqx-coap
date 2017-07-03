@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 -module(emq_coap_server).
 
--author("Feng Lee <feng@emqtt.io>").
-
 -include("emq_coap.hrl").
 
 -export([start/0, start/1, stop/0]).
@@ -25,10 +23,8 @@
 -define(LOG(Level, Format, Args),
     lager:Level("CoAP: " ++ Format, Args)).
 
-
 start() ->
-    Port = application:get_env(?APP, port, 5683),
-    start(Port).
+    start(application:get_env(?APP, port, 5683)).
 
 start(Port) ->
     application:start(gen_coap),
@@ -42,12 +38,8 @@ start(Port) ->
         false ->
             ?LOG(error, "certfile ~p or keyfile ~p are not valid, turn off coap DTLS", [CertFile, KeyFile])
     end,
-
     coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined).
 
-
 stop() ->
-    spawn(fun() -> group_leader(whereis(init), application:stop(gen_coap)) end). 
-
-% end of file
+    application:stop(gen_coap).
 
