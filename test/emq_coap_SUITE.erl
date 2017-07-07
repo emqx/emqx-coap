@@ -27,8 +27,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
-all() -> [case0_percent_encode,
-    case01, case02, case03, case04, case05, case06_keepalive, case07_one_clientid_sub_2_topics,
+all() -> [case01, case02, case03, case04, case05, case06_keepalive, case07_one_clientid_sub_2_topics,
     case10_auth_failure, case11_invalid_parameter, case12_invalid_topic].
 
 
@@ -39,11 +38,6 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     Config.
-
-
-case0_percent_encode(_Config) ->
-    ?assertEqual(<<"a/b">>, emq_coap_resource:topic(<<"a/b">>)),
-    ?assertEqual(<<"+/b">>, emq_coap_resource:topic(<<"%2B%2Fb">>)).
 
 
 

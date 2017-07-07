@@ -123,6 +123,9 @@ get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     get_auth(T, Auth).
 
 topic(TopicBinary) ->
-    list_to_binary(http_uri:decode(binary_to_list(TopicBinary))).
+    %% RFC 7252 section 6.4. Decomposing URIs into Options
+    %%     Note that these rules completely resolve any percent-encoding.
+    %% That is to say: URI may have percent-encoding. But coap options has no percent-encoding at all.
+    TopicBinary.
 
 

@@ -45,7 +45,7 @@ To subscribe any topic, issue following command:
 - replace {topicname}, {clientid}, {username} and {password} with your true values.
 - {topicname} and {clientid} is mandatory.
 - if clientid is absent, a "bad_request" will be returned.
-- {topicname} should be percent-encoded to prevent special characters.
+- {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
 - {username} and {password} are optional.
 - if {username} and {password} are not correct, an uauthorized error will be returned.
 
@@ -62,7 +62,7 @@ To cancel observation, issue following command:
 - replace {topicname}, {clientid}, {username} and {password} with your true values.
 - {topicname} and {clientid} is mandatory.
 - if clientid is absent, a "bad_request" will be returned.
-- {topicname} should be percent-encoded to prevent special characters.
+- {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
 - {username} and {password} are optional.
 - if {username} and {password} are not correct, an uauthorized error will be returned.
 
@@ -86,7 +86,7 @@ Issue a coap put command to do publishment. For example
 - replace {topicname}, {clientid}, {username} and {password} with your true values.
 - {topicname} and {clientid} is mandatory.
 - if clientid is absent, a "bad_request" will be returned.
-- {topicname} should be percent-encoded to prevent special characters.
+- {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
 - {username} and {password} are optional.
 - if {username} and {password} are not correct, an uauthorized error will be returned.
 - payload could be any binary data.
@@ -162,6 +162,10 @@ The output message is not well formatted which hide "1234567" at the head of the
 
 ### NOTES
 emq_coap gateway does not accept POST and DELETE requests.
+
+Topics in URI should be percent-encoded, but corresponding uri_path option has percent-encoding converted. Please refer to RFC 7252 section 6.4, "Decomposing URIs into Options":
+
+> Note that these rules completely resolve any percent-encoding.
 
 
 
