@@ -127,5 +127,3 @@ topic(TopicBinary) ->
     %%     Note that these rules completely resolve any percent-encoding.
     %% That is to say: URI may have percent-encoding. But coap options has no percent-encoding at all.
     TopicBinary.
-
-

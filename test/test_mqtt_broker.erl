@@ -184,4 +184,3 @@ timer(Sec, Msg) ->
 
 log(Format, Args) ->
     lager:debug(Format, Args).
-
