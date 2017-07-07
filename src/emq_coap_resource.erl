@@ -76,10 +76,11 @@ coap_delete(_ChId, _Prefix, _Name) ->
     {error, method_not_allowed}.
 
 coap_observe(ChId, ?MQTT_PREFIX, [Topic], Ack) ->
-    ?LOG(debug, "observe Topic=~p, Ack=~p", [Topic, Ack]),
+    TrueTopic = topic(Topic),
+    ?LOG(debug, "observe Topic=~p, Ack=~p", [TrueTopic, Ack]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:subscribe(Pid, topic(Topic)),
-    {ok, {state, ChId, ?MQTT_PREFIX, [Topic]}};
+    emq_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
+    {ok, {state, ChId, ?MQTT_PREFIX, [TrueTopic]}};
 coap_observe(ChId, Prefix, Name, Ack) ->
     ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Name=~p, Ack=~p", [ChId, Prefix, Name, Ack]),
     {error, bad_request}.
@@ -87,7 +88,7 @@ coap_observe(ChId, Prefix, Name, Ack) ->
 coap_unobserve({state, _ChId, ?MQTT_PREFIX, [Topic]}) ->
     ?LOG(debug, "unobserve ~p", [Topic]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:unsubscribe(Pid, topic(Topic)),
+    emq_coap_mqtt_adapter:unsubscribe(Pid, Topic),
     ok;
 coap_unobserve({state, ChId, Prefix, Name}) ->
     ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Name=~p", [ChId, Prefix, Name]),
@@ -118,4 +119,5 @@ get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     get_auth(T, Auth).
 
 topic(TopicBinary) ->
-    list_to_binary(http_uri:decode(binary_to_list(TopicBinary))).
+    %list_to_binary(http_uri:decode(binary_to_list(TopicBinary))).
+    TopicBinary.

@@ -42,8 +42,7 @@ end_per_suite(Config) ->
 
 case01(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
     Topic = <<"abc">>, Payload = <<"123">>,
     TopicStr = binary_to_list(Topic),
@@ -54,15 +53,13 @@ case01(_Config) ->
     PubMsg = test_mqtt_broker:get_published_msg(),
     ?LOGT("PubMsg=~p, Reply=~p~n", [PubMsg, Reply]),
     ?assertEqual({Topic, Payload}, PubMsg),
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 case02(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     Topic = <<"abc">>, TopicStr = binary_to_list(Topic),
@@ -88,15 +85,13 @@ case02(_Config) ->
     ?_assertEqual([], SubTopics2),
 
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 case03(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -106,7 +101,7 @@ case03(_Config) ->
     Payload = <<"123">>,
     Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
     {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
-    ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
+    ?LOGT("observer Uri=~p, Pid=~p, N=~p, Code=~p, Content=~p", [Uri, Pid, N, Code, Content]),
 
     timer:sleep(100),
     SubTopic = test_mqtt_broker:get_subscrbied_topics(),
@@ -123,15 +118,13 @@ case03(_Config) ->
     SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopic2),
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 case04(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -188,8 +181,7 @@ case04(_Config) ->
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
@@ -207,8 +199,7 @@ case05(_Config) ->
 
 case06_keepalive(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
@@ -245,16 +236,14 @@ case06_keepalive(_Config) ->
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 
 case07_one_clientid_sub_2_topics(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     Topic1 = <<"abc">>, TopicStr1 = binary_to_list(Topic1),
@@ -300,16 +289,14 @@ case07_one_clientid_sub_2_topics(_Config) ->
     ?_assertEqual([], SubTopicFinal),
 
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 
 case10_auth_failure(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -321,15 +308,13 @@ case10_auth_failure(_Config) ->
     Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,uauthorized}, Reply3),
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 case11_invalid_parameter(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -350,16 +335,14 @@ case11_invalid_parameter(_Config) ->
     ?assertMatch({error, bad_request}, Reply4),
 
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
 
 case12_invalid_topic(_Config) ->
     test_mqtt_broker:start_link(),
-    emq_coap_registry:start_link(),
-    emq_coap_server:start(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -380,8 +363,7 @@ case12_invalid_topic(_Config) ->
     ?assertMatch({error,bad_request}, Reply4),
 
 
-    emq_coap_server:stop(),
-    emq_coap_registry:stop(),
+    ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
 
