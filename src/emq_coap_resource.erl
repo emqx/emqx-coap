@@ -29,6 +29,10 @@
 -export([coap_discover/2, coap_get/4, coap_post/4, coap_put/4, coap_delete/3,
          coap_observe/4, coap_unobserve/1, handle_info/2, coap_ack/2]).
 
+-ifdef(TEST).
+-export([topic/1]).
+-endif.
+
 -define(MQTT_PREFIX, [<<"mqtt">>]).
 
 -define(LOG(Level, Format, Args),
@@ -119,5 +123,9 @@ get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     get_auth(T, Auth).
 
 topic(TopicBinary) ->
-    %list_to_binary(http_uri:decode(binary_to_list(TopicBinary))).
+    %% RFC 7252 section 6.4. Decomposing URIs into Options
+    %%     Note that these rules completely resolve any percent-encoding.
+    %% That is to say: URI may have percent-encoding. But coap options has no percent-encoding at all.
     TopicBinary.
+
+

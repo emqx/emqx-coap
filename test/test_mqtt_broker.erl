@@ -181,3 +181,7 @@ cancel(TRef) ->
 
 timer(Sec, Msg) ->
     erlang:send_after(timer:seconds(Sec), self(), Msg).
+
+log(Format, Args) ->
+    lager:debug(Format, Args).
+

@@ -22,15 +22,12 @@
 
 -define(LOGT(Format, Args), lager:debug("TEST_SUITE: " ++ Format, Args)).
 
-
 -include_lib("gen_coap/include/coap.hrl").
--include_lib("eunit/include/eunit.hrl").
 
+-include_lib("eunit/include/eunit.hrl").
 
 all() -> [case01, case02, case03, case04, case05, case06_keepalive, case07_one_clientid_sub_2_topics,
     case10_auth_failure, case11_invalid_parameter, case12_invalid_topic].
-
-
 
 init_per_suite(Config) ->
     lager_common_test_backend:bounce(debug),
@@ -38,7 +35,6 @@ init_per_suite(Config) ->
 
 end_per_suite(Config) ->
     Config.
-
 
 case01(_Config) ->
     test_mqtt_broker:start_link(),
@@ -55,7 +51,6 @@ case01(_Config) ->
     ?assertEqual({Topic, Payload}, PubMsg),
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
 
 case02(_Config) ->
     test_mqtt_broker:start_link(),
@@ -84,10 +79,8 @@ case02(_Config) ->
     SubTopics2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopics2),
 
-
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
 
 case03(_Config) ->
     test_mqtt_broker:start_link(),
@@ -121,7 +114,6 @@ case03(_Config) ->
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
-
 case04(_Config) ->
     test_mqtt_broker:start_link(),
     {ok, _Started} = application:ensure_all_started(emq_coap),
@@ -140,8 +132,6 @@ case04(_Config) ->
     SubTopic = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([Topic], SubTopic),
 
-
-
     Topic2 = <<"a/b">>, Payload2 = <<"UFO">>,
     TopicStr2 = http_uri:encode(binary_to_list(Topic2)),
     URI2 = "coap://127.0.0.1/mqtt/"++TopicStr2++"?c=client1&u=tom&p=secret",
@@ -157,7 +147,6 @@ case04(_Config) ->
     ?LOGT("observer get Notif2=~p", [Notif2]),
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv2}} = Notif2,
     ?_assertEqual(Payload2, PayloadRecv2),
-
 
     Topic3 = <<"j/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
@@ -175,7 +164,6 @@ case04(_Config) ->
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv3}} = Notif3,
     ?_assertEqual(Payload3, PayloadRecv3),
 
-
     coap_observer:stop(Pid),
     timer:sleep(100),
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
@@ -183,8 +171,6 @@ case04(_Config) ->
 
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
-
 
 case05(_Config) ->
     {ok, _} = application:ensure_all_started(emq_coap),
@@ -194,8 +180,6 @@ case05(_Config) ->
     application:stop(gen_coap),
     application:stop(crypto),
     application:stop(ssl).
-
-
 
 case06_keepalive(_Config) ->
     test_mqtt_broker:start_link(),
@@ -224,7 +208,6 @@ case06_keepalive(_Config) ->
     PubMsg3 = test_mqtt_broker:get_published_msg(),
     ?assertEqual(undefined, PubMsg3),
 
-
     test_mqtt_broker:dispatch(<<"a/b">>, Payload, Topic),
     Notif = receive_notification(),
     ?LOGT("observer get Notif=~p", [Notif]),
@@ -238,8 +221,6 @@ case06_keepalive(_Config) ->
 
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
-
 
 case07_one_clientid_sub_2_topics(_Config) ->
     test_mqtt_broker:start_link(),
@@ -255,8 +236,6 @@ case07_one_clientid_sub_2_topics(_Config) ->
     SubTopic1 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([Topic1], SubTopic1),
 
-
-
     Topic2 = <<"x/y">>, TopicStr2 = http_uri:encode(binary_to_list(Topic2)),
     Payload2 = <<"456">>,
     Uri2 = "coap://127.0.0.1/mqtt/"++TopicStr2++"?c=client1&u=tom&p=secret",
@@ -266,14 +245,11 @@ case07_one_clientid_sub_2_topics(_Config) ->
     SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([Topic1, Topic2], SubTopic2),
 
-
-
     test_mqtt_broker:dispatch(Topic1, Payload1, Topic1),
     Notif1 = receive_notification(),
     ?LOGT("observer 1 get Notif=~p", [Notif1]),
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv1}} = Notif1,
     ?_assertEqual(Payload1, PayloadRecv1),
-
 
     test_mqtt_broker:dispatch(Topic2, Payload2, Topic2),
     Notif2 = receive_notification(),
@@ -281,18 +257,14 @@ case07_one_clientid_sub_2_topics(_Config) ->
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv2}} = Notif2,
     ?_assertEqual(Payload2, PayloadRecv2),
 
-
     coap_observer:stop(Pid1),
     coap_observer:stop(Pid2),
     timer:sleep(100),
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
 
-
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
-
 
 case10_auth_failure(_Config) ->
     test_mqtt_broker:start_link(),
@@ -311,7 +283,6 @@ case10_auth_failure(_Config) ->
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
 
-
 case11_invalid_parameter(_Config) ->
     test_mqtt_broker:start_link(),
     {ok, _Started} = application:ensure_all_started(emq_coap),
@@ -326,7 +297,6 @@ case11_invalid_parameter(_Config) ->
     Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply3),
 
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% "what=hello" is invaid
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -334,11 +304,8 @@ case11_invalid_parameter(_Config) ->
     Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error, bad_request}, Reply4),
 
-
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
-
 
 case12_invalid_topic(_Config) ->
     test_mqtt_broker:start_link(),
@@ -362,10 +329,8 @@ case12_invalid_topic(_Config) ->
     Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply4),
 
-
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
-
 
 receive_notification() ->
     receive
