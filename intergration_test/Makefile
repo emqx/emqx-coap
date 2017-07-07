@@ -38,7 +38,8 @@ case1:
 	
 case2:
 	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/a%2Fb?c=client3&u=tom&p=secret" > case2_output1.txt &
-	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/+%2Fc?c=client4&u=mike&p=pw12" > case2_output2.txt &
+	# subscribe topic="+/c"
+	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/%2B%2Fc?c=client4&u=mike&p=pw12" > case2_output2.txt &
 	sleep 1
 	libcoap/examples/coap-client -m put -e big9wolf "coap://127.0.0.1/mqtt/d%2Fc?c=client5&u=sun&p=pw3"
 	libcoap/examples/coap-client -m put -e black2ant "coap://127.0.0.1/mqtt/a%2Fb?c=client5&u=sun&p=pw3"
@@ -67,7 +68,7 @@ case4:
 	sleep 1
 	libcoap/examples/coap-client -m put -e w6J3G45 "coap://127.0.0.1/mqtt/topic1?c=client2&u=mike&p=pw12"
 	sleep 6
-	python check_result.py  case1  case4_output.txt==w6J3G45
+	python check_result.py  case4  case4_output.txt==w6J3G45
 
 
 
