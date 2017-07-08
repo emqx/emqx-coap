@@ -321,7 +321,6 @@ case12_invalid_topic(_Config) ->
     Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply3),
 
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% "+?#" is invaid topic string
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -339,6 +338,3 @@ receive_notification() ->
     after 2000 ->
         receive_notification_timeout
     end.
-
-
-

@@ -37,17 +37,17 @@ case1:
 	python check_result.py  case1  case1_output.txt==w123G45
 	
 case2:
-	# subscribe to topic="a/c"
-	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/a%2Fb?c=client3&u=tom&p=secret" > case2_output1.txt &
-	# subscribe to topic="+/c"
-	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/%2B%2Fc?c=client4&u=mike&p=pw12" > case2_output2.txt &
+	# subscribe to topic="x/y"
+	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/x%2Fy?c=client3&u=tom&p=secret" > case2_output1.txt &
+	# subscribe to topic="+/z"
+	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/%2B%2Fz?c=client4&u=mike&p=pw12" > case2_output2.txt &
 	sleep 1
-	# publish to topic="d/c"
-	libcoap/examples/coap-client -m put -e big9wolf "coap://127.0.0.1/mqtt/d%2Fc?c=client5&u=sun&p=pw3"
-	# publish to topic="a/c"
-	libcoap/examples/coap-client -m put -e black2ant "coap://127.0.0.1/mqtt/a%2Fb?c=client5&u=sun&p=pw3"
+	# publish to topic="x/y"
+	libcoap/examples/coap-client -m put -e big9wolf "coap://127.0.0.1/mqtt/x%2Fy?c=client5&u=sun&p=pw3"
+	# publish to topic="p/z"
+	libcoap/examples/coap-client -m put -e black2ant "coap://127.0.0.1/mqtt/p%2Fz?c=client5&u=sun&p=pw3"
 	sleep 6
-	python check_result.py case2 case2_output1.txt==black2ant  case2_output1.txt!=big9wolf  case2_output2.txt==big9wolf  case2_output2.txt==black2ant
+	python check_result.py case2 case2_output1.txt==big9wolf  case2_output1.txt!=black2ant  case2_output2.txt!=big9wolf  case2_output2.txt==black2ant
 
 case3:
 	libcoap/examples/coap-client -m get -T tk12 -s 5  "coap://127.0.0.1/mqtt/a%2Fb?c=client3&u=tom&p=secret" > case3_output1.txt &
@@ -130,7 +130,7 @@ clean: clean_result
 	
 	
 	
-lazy: clean_result start_broker case3 stop_broker
+lazy: clean_result start_broker case2  stop_broker
 	# custom your command here
 	@echo "you are so lazy"
 	
