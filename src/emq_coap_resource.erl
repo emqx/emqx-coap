@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,25 +16,27 @@
 
 -module(emq_coap_resource).
 
--author("Feng Lee <feng@emqtt.io>").
-
--include_lib("emqttd/include/emqttd.hrl").
--include_lib("emqttd/include/emqttd_protocol.hrl").
--include_lib("gen_coap/include/coap.hrl").
-
-
 -behaviour(coap_resource).
 
--export([coap_discover/2, coap_get/4, coap_post/4, coap_put/4, coap_delete/3,
-    coap_observe/4, coap_unobserve/1, handle_info/2, coap_ack/2]).
-
 -include("emq_coap.hrl").
+
+-include_lib("gen_coap/include/coap.hrl").
+
+-include_lib("emqttd/include/emqttd.hrl").
+
+-include_lib("emqttd/include/emqttd_protocol.hrl").
+
+-export([coap_discover/2, coap_get/4, coap_post/4, coap_put/4, coap_delete/3,
+         coap_observe/4, coap_unobserve/1, handle_info/2, coap_ack/2]).
+
+-ifdef(TEST).
+-export([topic/1]).
+-endif.
 
 -define(MQTT_PREFIX, [<<"mqtt">>]).
 
 -define(LOG(Level, Format, Args),
     lager:Level("CoAP-RES: " ++ Format, Args)).
-
 
 % resource operations
 coap_discover(_Prefix, _Args) ->
@@ -62,7 +64,6 @@ coap_get(ChId, Prefix, Name, Query) ->
     ?LOG(error, "ignore bad put request ChId=~p, Prefix=~p, Name=~p, Query=~p", [ChId, Prefix, Name, Query]),
     {error, bad_request}.
 
-
 coap_post(_ChId, _Prefix, _Name, _Content) ->
     {error, method_not_allowed}.
 
@@ -79,10 +80,11 @@ coap_delete(_ChId, _Prefix, _Name) ->
     {error, method_not_allowed}.
 
 coap_observe(ChId, ?MQTT_PREFIX, [Topic], Ack) ->
-    ?LOG(debug, "observe Topic=~p, Ack=~p", [Topic, Ack]),
+    TrueTopic = topic(Topic),
+    ?LOG(debug, "observe Topic=~p, Ack=~p", [TrueTopic, Ack]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:subscribe(Pid, topic(Topic)),
-    {ok, {state, ChId, ?MQTT_PREFIX, [Topic]}};
+    emq_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
+    {ok, {state, ChId, ?MQTT_PREFIX, [TrueTopic]}};
 coap_observe(ChId, Prefix, Name, Ack) ->
     ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Name=~p, Ack=~p", [ChId, Prefix, Name, Ack]),
     {error, bad_request}.
@@ -90,12 +92,11 @@ coap_observe(ChId, Prefix, Name, Ack) ->
 coap_unobserve({state, _ChId, ?MQTT_PREFIX, [Topic]}) ->
     ?LOG(debug, "unobserve ~p", [Topic]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:unsubscribe(Pid, topic(Topic)),
+    emq_coap_mqtt_adapter:unsubscribe(Pid, Topic),
     ok;
 coap_unobserve({state, ChId, Prefix, Name}) ->
     ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Name=~p", [ChId, Prefix, Name]),
     ok.
-
 
 handle_info({dispatch, Topic, Payload}, State) ->
     ?LOG(debug, "dispatch Topic=~p, Payload=~p", [Topic, Payload]),
@@ -105,8 +106,6 @@ handle_info(Message, State) ->
     {noreply, State}.
 
 coap_ack(_Ref, State) -> {ok, State}.
-
-
 
 get_auth(Query) ->
     get_auth(Query, #coap_mqtt_auth{}).
@@ -123,13 +122,8 @@ get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     ?LOG(error, "ignore unknown parameter ~p", [Param]),
     get_auth(T, Auth).
 
-
 topic(TopicBinary) ->
-    TopicString = http_uri:decode(binary_to_list(TopicBinary)),
-    list_to_binary(TopicString).
-
-
-% end of file
-
-
-
+    %% RFC 7252 section 6.4. Decomposing URIs into Options
+    %%     Note that these rules completely resolve any percent-encoding.
+    %% That is to say: URI may have percent-encoding. But coap options has no percent-encoding at all.
+    TopicBinary.

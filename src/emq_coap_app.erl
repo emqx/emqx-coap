@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,28 +16,24 @@
 
 -module(emq_coap_app).
 
--author("Feng Lee <feng@emqtt.io>").
-
 -behaviour(application).
--export([start/2, stop/1, prep_stop/1]).
 
 -include("emq_coap.hrl").
 
+-export([start/2, stop/1, prep_stop/1]).
 
 start(_Type, _Args) ->
-    Port = application:get_env(?APP, port, 5683),
-    Pid = emq_coap_sup:start_link(),
-    emq_coap_server:start(Port),
-    Pid.
+    {ok, Sup} = emq_coap_sup:start_link(),
+    emq_coap_server:start(application:get_env(?APP, port, 5683)),
+    {ok,Sup}.
 
 prep_stop(State) ->
-    emq_coap_server:stop(),
     State.
 
-
 stop(_State) ->
-    ok.
-
-
-
+    spawn(
+      fun() ->
+          group_leader(whereis(init), self()),
+          emq_coap_server:stop()
+      end).
 

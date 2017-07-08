@@ -67,28 +67,28 @@ init(_Param) ->
 
 
 handle_call({publish, Msg = {Topic, Payload}}, _From, State) ->
-    ?LOGT("test api publish ~p~n", [Msg]),
+    ?LOGT("test broker publish ~p~n", [Msg]),
     (is_binary(Topic) and is_binary(Payload)) orelse error("Topic and Payload should be binary"),
     put(unittest_message, Msg),
     {reply, {ok, []}, State};
 
 handle_call(get_published_msg, _From, State) ->
     Response = get(unittest_message),
-    ?LOGT("test api get published msg=~p~n", [Response]),
+    ?LOGT("test broker get published msg=~p~n", [Response]),
     {reply, Response, State};
 
 handle_call({subscribe, Topic, Proc}, _From, State=#state{subscriber = SubList}) ->
-    ?LOGT("test api subscribe Topic=~p, Pid=~p~n", [Topic, Proc]),
+    ?LOGT("test broker subscribe Topic=~p, Pid=~p~n", [Topic, Proc]),
     is_binary(Topic) orelse error("Topic should be a binary"),
     {reply, {ok, []}, State#state{subscriber = [{Topic, Proc}|SubList]}};
 
 handle_call(get_subscribed_topics, _From, State=#state{subscriber = SubList}) ->
     Response = subscribed_topics(SubList, []),
-    ?LOGT("test api get subscribed topics=~p~n", [Response]),
+    ?LOGT("test broker get subscribed topics=~p~n", [Response]),
     {reply, Response, State};
 
 handle_call({unsubscribe, Topic}, _From, State=#state{subscriber = SubList}) ->
-    ?LOGT("test api unsubscribe Topic=~p~n", [Topic]),
+    ?LOGT("test broker unsubscribe Topic=~p~n", [Topic]),
     is_binary(Topic) orelse error("Topic should be a binary"),
     NewSubList = proplists:delete(Topic, SubList),
     {reply, {ok, []}, State#state{subscriber = NewSubList}};
@@ -97,7 +97,7 @@ handle_call({unsubscribe, Topic}, _From, State=#state{subscriber = SubList}) ->
 handle_call({dispatch, {Topic, Msg, MatchedTopicFilter}}, _From, State=#state{subscriber = SubList}) ->
     (is_binary(Topic) and is_binary(Msg)) orelse error("Topic and Msg should be binary"),
     Pid = proplists:get_value(MatchedTopicFilter, SubList),
-    ?LOGT("test api dispatch topic=~p, Msg=~p, Pid=~p, MatchedTopicFilter=~p, SubList=~p~n", [Topic, Msg, Pid, MatchedTopicFilter, SubList]),
+    ?LOGT("test broker dispatch topic=~p, Msg=~p, Pid=~p, MatchedTopicFilter=~p, SubList=~p~n", [Topic, Msg, Pid, MatchedTopicFilter, SubList]),
     (Pid == undefined) andalso ?LOGT("!!!!! this topic ~p has never been subscribed, please specify a valid topic filter", [MatchedTopicFilter]),
     ?assertNotEqual(undefined, Pid),
     Pid ! {deliver, #mqtt_message{topic = Topic, payload = Msg}},
@@ -181,3 +181,6 @@ cancel(TRef) ->
 
 timer(Sec, Msg) ->
     erlang:send_after(timer:seconds(Sec), self(), Msg).
+
+log(Format, Args) ->
+    lager:debug(Format, Args).

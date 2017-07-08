@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2013-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,22 +16,22 @@
 
 -module(emq_coap_mqtt_adapter).
 
--author("Feng Lee <feng@emqtt.io>").
-
 -behaviour(gen_server).
 
 -include("emq_coap.hrl").
--include_lib("emqttd/include/emqttd.hrl").
--include_lib("emqttd/include/emqttd_protocol.hrl").
 
+-include_lib("emqttd/include/emqttd.hrl").
+
+-include_lib("emqttd/include/emqttd_protocol.hrl").
 
 %% API.
 -export([subscribe/2, unsubscribe/2, publish/3, keepalive/1]).
+
 -export([client_pid/4, stop/1]).
 
 %% gen_server.
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-    terminate/2, code_change/3]).
+         terminate/2, code_change/3]).
 
 -record(state, {proto, peer, keepalive, sub_topics = []}).
 
@@ -40,22 +40,20 @@
 -define(LOG(Level, Format, Args),
     lager:Level("CoAP-MQTT: " ++ Format, Args)).
 
-
-
 -ifdef(TEST).
--define(PROTO_INIT(A, B, C, D),         test_mqtt_broker:start(A, B, C, D)).
--define(PROTO_SUBSCRIBE(X, Y),          test_mqtt_broker:subscribe(X)).
--define(PROTO_UNSUBSCRIBE(X, Y),        test_mqtt_broker:unsubscribe(X)).
--define(PROTO_PUBLISH(A1, A2, P),       test_mqtt_broker:publish(A1, A2)).
--define(PROTO_DELIVER_ACK(A1, A2),      A2).
--define(PROTO_SHUTDOWN(A, B),           ok).
+-define(PROTO_INIT(A, B, C, D),        test_mqtt_broker:start(A, B, C, D)).
+-define(PROTO_SUBSCRIBE(X, Y),         test_mqtt_broker:subscribe(X)).
+-define(PROTO_UNSUBSCRIBE(X, Y),       test_mqtt_broker:unsubscribe(X)).
+-define(PROTO_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
+-define(PROTO_DELIVER_ACK(A1, A2),     A2).
+-define(PROTO_SHUTDOWN(A, B),          ok).
 -else.
--define(PROTO_INIT(A, B, C, D),         proto_init(A, B, C, D)).
--define(PROTO_SUBSCRIBE(X, Y),          proto_subscribe(X, Y)).
--define(PROTO_UNSUBSCRIBE(X, Y),        proto_unsubscribe(X, Y)).
--define(PROTO_PUBLISH(A1, A2, P),       proto_publish(A1, A2, P)).
--define(PROTO_DELIVER_ACK(Msg, State),  proto_deliver_ack(Msg, State)).
--define(PROTO_SHUTDOWN(A, B),           emqttd_protocol:shutdown(A, B)).
+-define(PROTO_INIT(A, B, C, D),        proto_init(A, B, C, D)).
+-define(PROTO_SUBSCRIBE(X, Y),         proto_subscribe(X, Y)).
+-define(PROTO_UNSUBSCRIBE(X, Y),       proto_unsubscribe(X, Y)).
+-define(PROTO_PUBLISH(A1, A2, P),      proto_publish(A1, A2, P)).
+-define(PROTO_DELIVER_ACK(Msg, State), proto_deliver_ack(Msg, State)).
+-define(PROTO_SHUTDOWN(A, B),          emqttd_protocol:shutdown(A, B)).
 -endif.
 
 %%--------------------------------------------------------------------
@@ -286,9 +284,6 @@ proto_deliver_ack(#mqtt_message{qos = ?QOS2, pktid = PacketId}, Proto) ->
         Other          -> error(Other)
     end.
 
-
-
-
 deliver_to_coap(_TopicName, _Payload, []) ->
     ok;
 deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
@@ -299,6 +294,4 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
     %?LOG(debug, "deliver_to_coap Matched=~p, CoapPid=~p, TopicName=~p, Payload=~p, T=~p", [Matched, CoapPid, TopicName, Payload, T]),
     Matched andalso (CoapPid ! {dispatch, TopicName, Payload}),
     deliver_to_coap(TopicName, Payload, T).
-
-
 

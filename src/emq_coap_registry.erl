@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 %%--------------------------------------------------------------------
 
 -module(emq_coap_registry).
-
--author("Feng Lee <feng@emqtt.io>").
 
 -include("emq_coap.hrl").
 
