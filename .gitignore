@@ -2,12 +2,17 @@ deps/
 ebin/
 _rel/
 .erlang.mk/
-emq_coap.d
+*.d
+*.o
+*.exe
 data/
 *.iml
 .idea/
 logs/
 *.beam
+emq_coap.d
 
-
+intergration_test/emq-relx/
+intergration_test/libcoap/
+intergration_test/case*.txt
 

@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,27 +16,15 @@
 
 -module(emq_coap_sup).
 
--author("Feng Lee <feng@emqtt.io>").
-
 -behaviour(supervisor).
 
--export([start_link/1, init/1]).
+-export([start_link/0, init/1]).
 
 -define(CHILD(M), {M, {M, start_link, []}, permanent, 5000, worker, [M]}).
 
-start_link(Listener) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Listener]).
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-init([Listener]) ->
-    ChSup = {emq_coap_channel_sup,
-             {emq_coap_channel_sup, start_link, []},
-              permanent, infinity, supervisor, [emq_coap_channel_sup]},
-    ChMFA = {emq_coap_channel_sup, start_channel, []},
-    {ok, {{one_for_all, 10, 3600},
-          [ChSup, ?CHILD(emq_coap_server), ?CHILD(emq_coap_registry), listener_child(Listener, ChMFA)]}}.
-
-listener_child(Port, ChMFA) ->
-    {{coap_listener, coap},
-      {esockd_udp, server, [coap, Port, [], ChMFA]},
-        permanent, 5000, worker, [esockd_udp]}.
+init(_Args) ->
+    {ok, { {one_for_all, 10, 3600}, [?CHILD(emq_coap_registry)] }}.
 

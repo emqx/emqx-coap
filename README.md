@@ -1,114 +1,172 @@
 
-# emq_coap
+emq_coap
+=========
 
 CoAP Gateway for the EMQ Broker
 
-## Configure Plugin
+Configure Plugin
+----------------
 
 File: etc/emq_coap.conf
 
 ```
-coap.server = 5683
-coap.keepalive = 3600
+coap.port = 5683
+coap.keepalive = 120
+coap.certfile = etc/certs/cert.pem
+coap.keyfile = etc/certs/key.pem
 ```
+- coap.port
+  + UDP port for coap.
+- coap.keepalive
+  + Interval for keepalive, in seconds.
+- coap.certfile
+  + server certificate for DTLS
+- coap.keyfile
+  + private key for DTLS
 
-## Load Plugin
+Load Plugin
+-----------
 
 ```
 ./bin/emqttd_ctl plugins load emq_coap
 ```
 
-## PUBLISH MESSAGE
-Send a POST command to "coap://host/mqtt", with payload="topic=XX&message=YY", where XX is topic and YY is payload. XX and YY should be percent-encoded.
+Observe (subscribe topic)
+-------------------------
+To subscribe any topic, issue following command:
 
-## SUBSCRIBE TOPIC
-Send a GET command to "coap://host/mqtt/?topic=XX", with observe=0 option, where XX is topic. XX should be percent-encoded.
-
-## UNSUBSCRIBE TOPIC
-Send a GET command to "coap://host/mqtt/?topic=XX", with observe=1 option, where XX is topic. XX should be percent-encoded.
-
-## DISPATCHED MESSAGE
-MQTT message sent from broker is carried in a caop notification, with payload="topic=XX&message=YY", where XX is topic and YY is payload. XX and YY are percent-encoded.
-
-## KEEPALIVE
-Send a GET command to "coap://host/mqtt/", without any options. The default timeout is 3600 seconds. Once keepalive timeout, coap client context will be dropped and coap client will never receive messages from broker.
-
-## NOTE
-Only one topic could be subscribed.
-
-
-## Client Example
-Here is a coap client code snippet talking with emq_coap gateway. It depends on coapthon package, please install it through 'pip install coapthon'.  
-```python
-#!/usr/bin/env python
-from Queue import Queue
-import getopt
-import random
-import sys
-import threading
-from coapthon import defines
-from coapthon.client.coap import CoAP
-from coapthon.client.helperclient import HelperClient
-from coapthon.messages.message import Message
-from coapthon.messages.request import Request
-from coapthon.utils import parse_uri
-import socket, time
-
-
-
-def client_callback_observe(response):
-    print("get a response\n")
-    if response:
-        print(response.pretty_print())
-
-def keepalive(client, uri):
-    client.get(uri)
-        
-
-def main():
-    # please encode topic and message payload with percent-encoding
-    # if topic and payload contains special characters other than alphabet and digits 
-    
-    coap_uri = "coap://192.168.222.130/mqtt?topic=abc"
-    host, port, path = parse_uri(coap_uri)
-    host = socket.gethostbyname(host)
-    client = HelperClient(server=(host, port))
-    
-    # subscribe topic "abc"
-    client.observe(coap_uri, client_callback_observe)
-        
-    time.sleep(1)
-    
-    # publish a message with topic="abc" payload="hello"
-    payload = "topic=abc&message=hello"
-    response = client.post("coap://192.168.222.130/mqtt", payload)
-
-    count = 0
-    while count < 20:  # wait 20 seconds to get subscribed message
-        count = count + 1
-        time.sleep(1)
-        keepalive(client, coap_uri)
-    
-    client.stop()
-    
-
-
-if __name__ == '__main__':
-    main()
-    
+```
+  GET  coap://localhost/mqtt/{topicname}?c={clientid}&u={username}&p={password}    with OBSERVE=0
 ```
 
-emq_coap gateway does not accept PUT and DELETE request.
+- "mqtt" in the path is mandatory.
+- replace {topicname}, {clientid}, {username} and {password} with your true values.
+- {topicname} and {clientid} is mandatory.
+- if clientid is absent, a "bad_request" will be returned.
+- {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
+- {username} and {password} are optional.
+- if {username} and {password} are not correct, an uauthorized error will be returned.
 
-In case topic and message contains special characters, such as '&' or '/', please percent-encoding them before assembling a coap payload.
-For example, topic="/abc" and message="x=9", coap payload should be "topic=%2Fabc&message=x%3D9".
+Unobserve (unsubscribe topic)
+-----------------------------
+To cancel observation, issue following command:
+
+```
+  GET  coap://localhost/mqtt/{topicname}?c={clientid}&u={username}&p={password}    with OBSERVE=1
+```
+
+- "mqtt" in the path is mandatory.
+- replace {topicname}, {clientid}, {username} and {password} with your true values.
+- {topicname} and {clientid} is mandatory.
+- if clientid is absent, a "bad_request" will be returned.
+- {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
+- {username} and {password} are optional.
+- if {username} and {password} are not correct, an uauthorized error will be returned.
 
 
-# License
+Notification (subscribed Message)
+---------------------------------
+Server will issue an observe-notification as a subscribed message.
+
+- Its payload is exactly the mqtt payload.
+- payload data type is "application/octet-stream".
+
+Publish
+-------
+Issue a coap put command to do publishment. For example:
+
+```
+  PUT  coap://localhost/mqtt/{topicname}?c={clientid}&u={username}&p={password}
+```
+
+- "mqtt" in the path is mandatory.
+- replace {topicname}, {clientid}, {username} and {password} with your true values.
+- {topicname} and {clientid} is mandatory.
+- if clientid is absent, a "bad_request" will be returned.
+- {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
+- {username} and {password} are optional.
+- if {username} and {password} are not correct, an uauthorized error will be returned.
+- payload could be any binary data.
+- payload data type is "application/octet-stream".
+- publish message will be sent with qos0.
+
+Keep Alive
+----------
+Device should issue a get command periodically, serve as a ping to keep mqtt session online.
+
+```
+  GET  coap://localhost/mqtt/{any_topicname}?c={clientid}&u={username}&p={password}
+```
+
+- "mqtt" in the path is mandatory.
+- replace {any_topicname}, {clientid}, {username} and {password} with your true values.
+- {any_topicname} is optional, and should be percent-encoded to prevent special characters.
+- {clientid} is mandatory. If clientid is absent, a "bad_request" will be returned.
+- {username} and {password} are optional.
+- if {username} and {password} are not correct, an uauthorized error will be returned.
+- coap client should do keepalive work periodically to keep mqtt session online, especially those devices in a NAT network.
+
+DTLS
+----
+emq-coap support DTLS to secure UDP data.
+
+Please config coap.certfile and coap.keyfile in emq_coap.conf. If certfile or keyfile are invalid, DTLS will be turned off and you could read a error message in system log.
+
+## Client
+libcoap is an excellent coap library which has a simple client tool.
+
+To compile libcoap, do following steps:
+
+```
+git clone http://github.com/obgm/libcoap
+cd libcoap
+./autogen.sh
+./configure --enable-documentation=no --enable-tests=no
+make
+```
+
+### Publish example:
+```
+libcoap/examples/coap-client -m put -e 1234  "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret"
+```
+- topic name is topic1
+- client id is client1
+- username is tom
+- password is secret
+- payload is a text string "1234"
+
+### Subscribe example:
+
+```
+libcoap/examples/coap-client -m get -s 10 "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret"
+```
+- topic name is topic1
+- client id is client1
+- username is tom
+- password is secret
+- subscribe time is 10 seconds
+
+And you will get following result if anybody sent message with text "1234567" on topic1:
+
+```
+v:1 t:CON c:GET i:31ae {} [ ]
+1234567v:1 t:CON c:GET i:31af {} [ Observe:1, Uri-Path:mqtt, Uri-Path:topic1, Uri-Query:c=client1, Uri-Query:u=tom, Uri-Query:p=secret ]
+```
+The output message is not well formatted which hide "1234567" at the head of the 2nd line.
+
+### NOTES
+emq_coap gateway does not accept POST and DELETE requests.
+
+Topics in URI should be percent-encoded, but corresponding uri_path option has percent-encoding converted. Please refer to RFC 7252 section 6.4, "Decomposing URIs into Options":
+
+> Note that these rules completely resolve any percent-encoding.
+
+License
+-------
 
 Apache License Version 2.0
 
-# Author
+Author
+------
 
 Feng Lee <feng@emqtt.io>
-
