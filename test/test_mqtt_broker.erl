@@ -24,17 +24,27 @@
 
 -record(state, {subscriber}).
 
+-record(proto_stats, {enable_stats = false, recv_pkt = 0, recv_msg = 0, send_pkt = 0, send_msg = 0}).
+
 -include_lib("emqttd/include/emqttd.hrl").
 -include_lib("emqttd/include/emqttd_protocol.hrl").
+-include_lib("emqttd/include/emqttd_internal.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-start(_, <<"attacker">>, _, _) ->
+start(_, <<"attacker">>, _, _, _) ->
     {stop, auth_failure};
-start(ClientId, Username, Password, _Channel) ->
+start(ClientId, Username, Password, _Channel, EnableStats) ->
     true = is_binary(ClientId),
     true = ( is_binary(Username) or (Username == undefined) ),
     true = ( is_binary(Password) or (Password == undefined) ),
     self() ! {keepalive, start, 10},
+    case EnableStats of
+        true ->
+            self() ! emit_stats,
+            ?LOGT("send emit_stats", []);
+        false ->
+            ?LOGT("client_enable_stats is false, stats case may fail!", [])
+    end,
     {ok, []}.
 
 publish(Topic, Payload) ->
@@ -63,6 +73,7 @@ stop() ->
     gen_server:stop(?MODULE).
 
 init(_Param) ->
+    ets:new(test_client_stats, [set, named_table, public]),
     {ok, #state{subscriber = []}}.
 
 
@@ -184,3 +195,18 @@ timer(Sec, Msg) ->
 
 log(Format, Args) ->
     lager:debug(Format, Args).
+
+clientid(_) ->
+    cleintid_test.
+
+stats(_) ->
+    Stats = #proto_stats{enable_stats = true, recv_pkt = 3, recv_msg = 3,
+        send_pkt = 2, send_msg = 2},
+    tl(?record_to_proplist(proto_stats, Stats)).
+
+set_client_stats(ClientId, Statlist) ->
+    ets:insert(test_client_stats, {ClientId, [{'$ts', emqttd_time:now_secs()}|Statlist]}).
+
+print_table() ->
+    List = ets:tab2list(test_client_stats),
+    ?LOGT("The table ~p with the content is ~p~n", [ets:info(test_client_stats, name), List]).

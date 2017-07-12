@@ -33,7 +33,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {proto, peer, keepalive, sub_topics = []}).
+-record(state, {proto, peer, keepalive, sub_topics = [], enable_stats}).
 
 -define(DEFAULT_KEEP_ALIVE_DURATION,  60*2).
 
@@ -41,21 +41,30 @@
     lager:Level("CoAP-MQTT: " ++ Format, Args)).
 
 -ifdef(TEST).
--define(PROTO_INIT(A, B, C, D),        test_mqtt_broker:start(A, B, C, D)).
+-define(PROTO_INIT(A, B, C, D, E),     test_mqtt_broker:start(A, B, C, D, E)).
 -define(PROTO_SUBSCRIBE(X, Y),         test_mqtt_broker:subscribe(X)).
 -define(PROTO_UNSUBSCRIBE(X, Y),       test_mqtt_broker:unsubscribe(X)).
 -define(PROTO_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
 -define(PROTO_DELIVER_ACK(A1, A2),     A2).
 -define(PROTO_SHUTDOWN(A, B),          ok).
+-define(PROTO_SEND(A, B),              {ok, B}).
+-define(PROTO_GET_CLIENT_ID(A),        test_mqtt_broker:clientid(A)).
+-define(PROTO_STATS(A),                test_mqtt_broker:stats(A)).
+-define(SET_CLIENT_STATS(A,B),         test_mqtt_broker:set_client_stats(A,B)).
 -else.
--define(PROTO_INIT(A, B, C, D),        proto_init(A, B, C, D)).
+-define(PROTO_INIT(A, B, C, D, E),     proto_init(A, B, C, D, E)).
 -define(PROTO_SUBSCRIBE(X, Y),         proto_subscribe(X, Y)).
 -define(PROTO_UNSUBSCRIBE(X, Y),       proto_unsubscribe(X, Y)).
 -define(PROTO_PUBLISH(A1, A2, P),      proto_publish(A1, A2, P)).
 -define(PROTO_DELIVER_ACK(Msg, State), proto_deliver_ack(Msg, State)).
 -define(PROTO_SHUTDOWN(A, B),          emqttd_protocol:shutdown(A, B)).
+-define(PROTO_SEND(A, B),              emqttd_protocol:send(A, B)).
+-define(PROTO_GET_CLIENT_ID(A),        emqttd_protocol:clientid(A)).
+-define(PROTO_STATS(A),                emqttd_protocol:stats(A)).
+-define(SET_CLIENT_STATS(A,B),         emqttd_stats:set_client_stats(A,B)).
 -endif.
 
+-define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -98,8 +107,9 @@ keepalive(Pid)->
 
 init({ClientId, Username, Password, Channel}) ->
     ?LOG(debug, "try to start adapter ClientId=~p, Username=~p, Password=~p, Channel=~p", [ClientId, Username, Password, Channel]),
-    case ?PROTO_INIT(ClientId, Username, Password, Channel) of
-        {ok, Proto}           -> {ok, #state{proto = Proto, peer = Channel}};
+    EnableStats = application:get_env(?APP, enable_stats, false),
+    case ?PROTO_INIT(ClientId, Username, Password, Channel, EnableStats) of
+        {ok, Proto}           -> {ok, #state{proto = Proto, peer = Channel, enable_stats = EnableStats}};
         {stop, auth_failure}  -> {stop, auth_failure};
         Other                 -> {stop, Other}
     end.
@@ -129,7 +139,7 @@ handle_call(info, From, State = #state{proto = ProtoState, peer = Channel}) ->
     {reply, lists:append([ClientInfo, ProtoInfo, Stats]), State};
 
 handle_call(stats, _From, State = #state{proto = ProtoState}) ->
-    {reply, lists:append([emqttd_misc:proc_stats(), emqttd_protocol:stats(ProtoState)]), State};
+    {reply, lists:append([emqttd_misc:proc_stats(), ?PROTO_STATS(ProtoState), socket_stats(undefined, ?SOCK_STATS)]), State, hibernate};
 
 handle_call(kick, _From, State) ->
     {stop, {shutdown, kick}, ok, State};
@@ -152,6 +162,7 @@ handle_call(Request, _From, State) ->
 handle_cast(keepalive, State=#state{keepalive = undefined}) ->
     {noreply, State, hibernate};
 handle_cast(keepalive, State=#state{keepalive = Keepalive}) ->
+    emit_stats(State),
     NewKeepalive = emq_coap_timer:kick_timer(Keepalive),
     {noreply, State#state{keepalive = NewKeepalive}, hibernate};
 
@@ -165,7 +176,8 @@ handle_info({deliver, Msg = #mqtt_message{topic = TopicName, payload = Payload}}
     ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p, Subscribers=~p", [TopicName, Payload, Subscribers]),
     NewProto = ?PROTO_DELIVER_ACK(Msg, Proto),
     deliver_to_coap(TopicName, Payload, Subscribers),
-    {noreply, State#state{proto = NewProto}};
+    {ok, NewerProto} = ?PROTO_SEND(Msg, NewProto),
+    {noreply, State#state{proto = NewerProto}};
 
 handle_info({suback, _MsgId, [_GrantedQos]}, State) ->
     {noreply, State, hibernate};
@@ -191,8 +203,7 @@ handle_info({keepalive, check}, StateData = #state{keepalive = KeepAlive}) ->
 
 
 handle_info(emit_stats, State) ->
-    ?LOG(info, "emit_stats is not supported", []),
-    {noreply, State, hibernate};
+    {noreply, emit_stats(State), hibernate};
 
 handle_info(timeout, State) ->
     {stop, {shutdown, idle_timeout}, State};
@@ -228,9 +239,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Functions
 %%--------------------------------------------------------------------
 
-proto_init(ClientId, Username, Password, Channel) ->
+proto_init(ClientId, Username, Password, Channel, EnableStats) ->
     SendFun = fun(_Packet) -> ok end,
-    PktOpts = [{max_clientid_len, 96}, {max_packet_size, 512}],
+    PktOpts = [{max_clientid_len, 96}, {max_packet_size, 512}, {client_enable_stats, EnableStats}],
     Proto = emqttd_protocol:init(Channel, SendFun, PktOpts),
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
@@ -295,3 +306,25 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
     Matched andalso (CoapPid ! {dispatch, TopicName, Payload}),
     deliver_to_coap(TopicName, Payload, T).
 
+%% here we keep the original socket_stats implementation, which will be put into use when we can get socket fd in emq_coap_mqtt_adapter process
+%socket_stats(Sock, Stats) when is_port(Sock), is_list(Stats)->
+    %inet:getstat(Sock, Stats).
+
+%%this socket_stats is a fake funtion
+socket_stats(undefined, Stats) when is_list(Stats)->
+    FakeSockOpt = [0, 0, 0, 0, 0],
+    List = lists:zip(Stats, FakeSockOpt),
+    ?LOG(debug, "The List=~p", [List]),
+    List.
+
+emit_stats(StateData=#state{proto=ProtoState}) ->
+    emit_stats(?PROTO_GET_CLIENT_ID(ProtoState), StateData).
+
+emit_stats(_ClientId, State = #state{enable_stats = false}) ->
+    ?LOG(debug, "The enable_stats is false, skip emit_state~n", []),
+    State;
+
+emit_stats(ClientId, State) ->
+    {reply, Stats, _, _} = handle_call(stats, undefined, State),
+    ?SET_CLIENT_STATS(ClientId, Stats),
+    State.

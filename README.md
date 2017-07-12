@@ -12,6 +12,7 @@ File: etc/emq_coap.conf
 ```
 coap.port = 5683
 coap.keepalive = 120
+coap.enable_stats = off
 coap.certfile = etc/certs/cert.pem
 coap.keyfile = etc/certs/key.pem
 ```
@@ -19,6 +20,8 @@ coap.keyfile = etc/certs/key.pem
   + UDP port for coap.
 - coap.keepalive
   + Interval for keepalive, in seconds.
+- coap.enable_stats
+  + To control whether write statistics data into ETS table for dashbord to read.
 - coap.certfile
   + server certificate for DTLS
 - coap.keyfile
