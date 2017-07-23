@@ -17,3 +17,7 @@
   {datatype, string}
 ]}.
 
+{mapping, "coap.enable_stats", "emq_coap.enable_stats", [
+  {datatype, flag}
+]}.
+

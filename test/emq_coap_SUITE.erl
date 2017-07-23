@@ -27,10 +27,11 @@
 -include_lib("eunit/include/eunit.hrl").
 
 all() -> [case01, case02, case03, case04, case05, case06_keepalive, case07_one_clientid_sub_2_topics,
-    case10_auth_failure, case11_invalid_parameter, case12_invalid_topic].
+    case10_auth_failure, case11_invalid_parameter, case12_invalid_topic, case13_emit_stats_test].
 
 init_per_suite(Config) ->
     lager_common_test_backend:bounce(debug),
+    application:set_env(emq_coap, enable_stats, true),
     Config.
 
 end_per_suite(Config) ->
@@ -327,6 +328,22 @@ case12_invalid_topic(_Config) ->
     URI4 = "coap://127.0.0.1/mqtt/"++"+?#"++"?what=hello",
     Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply4),
+
+    ok = application:stop(emq_coap),
+    test_mqtt_broker:stop().
+
+case13_emit_stats_test(_Config) ->
+    test_mqtt_broker:start_link(),
+    {ok, _Started} = application:ensure_all_started(emq_coap),
+    timer:sleep(100),
+
+    Topic = <<"a/b">>, Payload = <<"ET629">>,
+    TopicStr = http_uri:encode(binary_to_list(Topic)),
+    URI = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client2&u=tom&p=simple",
+    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    ?assertMatch({ok, _Code, _Content}, Reply),
+
+    test_mqtt_broker:print_table(),
 
     ok = application:stop(emq_coap),
     test_mqtt_broker:stop().
