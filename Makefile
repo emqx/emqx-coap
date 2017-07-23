@@ -7,7 +7,7 @@ dep_lager    = git https://github.com/basho/lager
 dep_gen_coap = git https://github.com/emqtt/gen_coap
 
 BUILD_DEPS = emqttd cuttlefish
-dep_emqttd = git https://github.com/emqtt/emqttd develop
+dep_emqttd = git https://github.com/emqtt/emqttd emq24
 dep_cuttlefish = git https://github.com/emqtt/cuttlefish
 
 ERLC_OPTS += +debug_info
