@@ -18,7 +18,7 @@
 
 -include("emq_coap.hrl").
 
--export([cancel_timer/1, start_timer/2, restart_timer/1, kick_timer/1, is_timeout/1]).
+-export([cancel_timer/1, start_timer/2, restart_timer/1, kick_timer/1, is_timeout/1, get_timer_length/1]).
 
 -record(timer_state, {interval, kickme, tref, message}).
 
@@ -49,3 +49,5 @@ restart_timer(State=#timer_state{interval = Sec, message = Msg}) ->
 is_timeout(#timer_state{kickme = Bool}) ->
     not Bool.
 
+get_timer_length(#timer_state{interval = Interval}) ->
+    Interval.
