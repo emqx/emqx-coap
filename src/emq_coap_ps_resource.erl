@@ -173,24 +173,26 @@ get_binary([<<>>]) ->
 get_binary([Binary]) when is_binary(Binary) ->
     Binary.
 
-get_stored_ct_value(Topic) ->
-    emq_coap_ps_topics:lookup_topic_payload_ct(Topic).
-
 add_topic_info(publish, Topic, MaxAge, Format, Payload) when is_binary(Topic), Topic =/= <<>>  ->
-    case emq_coap_ps_topics:is_topic_existed(Topic) of
-        true ->
+    case emq_coap_ps_topics:lookup_topic_info(Topic) of
+        [{_, StoredMaxAge, StoredCT, _, _}] ->
             ?LOG(debug, "publish topic=~p already exists, need reset the topic info", [Topic]),
-            StoredCT = get_stored_ct_value(Topic),
             %% check whether the ct value stored matches the ct option in this POST message
             case Format =:= StoredCT of
                 true  ->
-                    {ok, Ret} = emq_coap_ps_topics:reset_topic_info(Topic, MaxAge, Format, Payload),
+                    {ok, Ret} =
+                        case StoredMaxAge =:= MaxAge of
+                            true  ->
+                                emq_coap_ps_topics:reset_topic_info(Topic, Payload);
+                            false ->
+                                emq_coap_ps_topics:reset_topic_info(Topic, MaxAge, Payload)
+                        end,
                     {changed, Ret};
                 false ->
                     ?LOG(debug, "ct values of topic=~p do not match, stored ct=~p, new ct=~p, ignore the PUBLISH", [Topic, StoredCT, Format]),
                     {changed, false}
             end;
-        false ->
+        [] ->
             ?LOG(debug, "publish topic=~p will be created", [Topic]),
             {ok, Ret} = emq_coap_ps_topics:add_topic_info(Topic, MaxAge, Format, Payload),
             {created, Ret}
@@ -199,11 +201,12 @@ add_topic_info(publish, Topic, MaxAge, Format, Payload) when is_binary(Topic), T
 add_topic_info(create, Topic, MaxAge, Format, _Payload) when is_binary(Topic), Topic =/= <<>> ->
     case emq_coap_ps_topics:is_topic_existed(Topic) of
         true ->
+            %% Whether we should support CREATE to an existed topic is TBD!!
             ?LOG(debug, "create topic=~p already exists, need reset the topic info", [Topic]),
             {ok, Ret} = emq_coap_ps_topics:reset_topic_info(Topic, MaxAge, Format, <<>>);
         false ->
             ?LOG(debug, "create topic=~p will be created", [Topic]),
-            {ok, Ret} = emq_coap_ps_topics:add_topic_info(Topic, MaxAge, Format)
+            {ok, Ret} = emq_coap_ps_topics:add_topic_info(Topic, MaxAge, Format, <<>>)
     end,
     {created, Ret};
 
@@ -264,29 +267,29 @@ handle_received_create(TopicPrefix, MaxAge, Payload) ->
             {error, bad_request}
     end.
 
-%% the stored paylaod is <<>>, the topic is never published and not timeout. It should return nocontent here,
-%% but gen_coap only receive #coap_content from coap_get, so temporarily we don't give the Code 2.07 {ok, nocontent} out.TBC!!!
-return_resource(_Topic, <<>>, _Content, TimeStamp) when TimeStamp =/= timeout->
-    #coap_content{};
-
-%% the stored topic timeout, should return nocontent here.TBC!!!
-return_resource(_Topic, _Payload, _Content, timeout) ->
-    #coap_content{};
-
-return_resource(Topic, Payload, Content, _TimeStamp) ->
-    LeftTime = emq_coap_ps_topics:get_timer_left_seconds(Topic),
-    ?LOG(debug, "topic=~p has max age left time is ~p", [Topic, LeftTime]),
-    Content#coap_content{max_age = LeftTime, payload = Payload}.
+%% When topic is timeout, server should return nocontent here,
+%% but gen_coap only receive return value of #coap_content from coap_get, so temporarily we can't give the Code 2.07 {ok, nocontent} out.TBC!!!
+return_resource(Topic, Payload, MaxAge, TimeStamp, Content) ->
+    TimeElapsed = trunc(timer:now_diff(erlang:now(), TimeStamp) / 1000),
+    case TimeElapsed < MaxAge of
+        true  ->
+            LeftTime = (MaxAge - TimeElapsed),
+            ?LOG(debug, "topic=~p has max age left time is ~p", [Topic, LeftTime]),
+            Content#coap_content{max_age = LeftTime, payload = Payload};
+        false ->
+            ?LOG(debug, "topic=~p has been timeout, will return empty content", [Topic]),
+            #coap_content{}
+    end.
 
 read_last_publish_message(false, Topic, Content=#coap_content{format = QueryFormat}) when is_binary(QueryFormat)->
     ?LOG(debug, "the QueryFormat=~p", [QueryFormat]),
     case emq_coap_ps_topics:lookup_topic_info(Topic) of
         [] ->
             {error, not_found};
-        [{_, _, CT, Payload, TimeStamp}] ->
+        [{_, MaxAge, CT, Payload, TimeStamp}] ->
             case CT =:= format_string_to_int(QueryFormat) of
                 true  ->
-                    return_resource(Topic, Payload, Content, TimeStamp);
+                    return_resource(Topic, Payload, MaxAge, TimeStamp, Content);
                 false ->
                     ?LOG(debug, "format value does not match, the queried format=~p, the stored format=~p", [QueryFormat, CT]),
                     {error, bad_request}
@@ -297,8 +300,8 @@ read_last_publish_message(false, Topic, Content) ->
     case emq_coap_ps_topics:lookup_topic_info(Topic) of
         [] ->
             {error, not_found};
-        [{_, _, _, Payload, TimeStamp}] ->
-            return_resource(Topic, Payload, Content, TimeStamp)
+        [{_, MaxAge, _, Payload, TimeStamp}] ->
+            return_resource(Topic, Payload, MaxAge, TimeStamp, Content)
     end;
 
 read_last_publish_message(true, Topic, _Content) ->

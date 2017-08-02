@@ -25,9 +25,9 @@
 -include_lib("emqttd/include/emqttd_protocol.hrl").
 
 %% API.
--export([add_topic_info/3, add_topic_info/4, delete_topic_info/1, delete_sub_topics/1,
-    is_topic_existed/1, is_topic_timeout/1, reset_topic_info/2, reset_topic_info/4,
-    lookup_topic_info/1, lookup_topic_payload_ct/1, lookup_topic_payload/1, get_timer_left_seconds/1]).
+-export([add_topic_info/4, delete_topic_info/1, delete_sub_topics/1, is_topic_existed/1,
+    is_topic_timeout/1, reset_topic_info/2, reset_topic_info/3, reset_topic_info/4,
+    lookup_topic_info/1, lookup_topic_payload/1]).
 
 -export([start/0, stop/1]).
 
@@ -51,9 +51,6 @@ start() ->
 stop(Pid) ->
     gen_server:stop(Pid).
 
-add_topic_info(Topic, MaxAge, CT) when is_binary(Topic), is_integer(MaxAge), is_binary(CT) ->
-    add_topic_info(Topic, MaxAge, CT, <<>>).
-
 add_topic_info(Topic, MaxAge, CT, Payload) when is_binary(Topic), is_integer(MaxAge), is_binary(CT), is_binary(Payload) ->
     gen_server:call(?MODULE, {add_topic, {Topic, MaxAge, CT, Payload}}).
 
@@ -66,6 +63,9 @@ delete_sub_topics(Topic) when is_binary(Topic) ->
 reset_topic_info(Topic, Payload) ->
     gen_server:call(?MODULE, {reset_topic, {Topic, Payload}}).
 
+reset_topic_info(Topic, MaxAge, Payload) ->
+    gen_server:call(?MODULE, {reset_topic, {Topic, MaxAge, Payload}}).
+
 reset_topic_info(Topic, MaxAge, CT, Payload) ->
     gen_server:call(?MODULE, {reset_topic, {Topic, MaxAge, CT, Payload}}).
 
@@ -73,13 +73,11 @@ is_topic_existed(Topic) ->
     ets:member(?COAP_TOPIC_TABLE, Topic).
 
 is_topic_timeout(Topic) when is_binary(Topic) ->
-    timeout =:= ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 5).
+    [{Topic, MaxAge, _, _, TimeStamp}] = ets:lookup(?COAP_TOPIC_TABLE, Topic),
+    MaxAge < (timer:now_diff(erlang:now(), TimeStamp) / 1000000).
 
 lookup_topic_info(Topic) ->
     ets:lookup(?COAP_TOPIC_TABLE, Topic).
-
-lookup_topic_payload_ct(Topic) ->
-    ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 3).
 
 lookup_topic_payload(Topic) ->
     case ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 4) of
@@ -89,15 +87,9 @@ lookup_topic_payload(Topic) ->
             undefined
     end.
 
-get_timer_left_seconds(Topic) ->
-    PassedTime = trunc(timer:now_diff(erlang:now(), ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 5)) / 1000),
-    TimerState= ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 2),
-    emq_coap_timer:get_timer_length(TimerState) - PassedTime.
-
 %%--------------------------------------------------------------------
 %% gen_server Callbacks
 %%--------------------------------------------------------------------
-
 init([]) ->
     ets:new(?COAP_TOPIC_TABLE, [set, named_table, protected]),
     ?LOG(debug, "Create the coap_topic table", []),
@@ -105,18 +97,19 @@ init([]) ->
 
 
 handle_call({add_topic, {Topic, MaxAge, CT, Payload}}, _From, State) ->
-    TimerState = emq_coap_timer:start_timer(MaxAge, {max_age_timeout, Topic}),
-    Ret = create_table_element(Topic, TimerState, CT, Payload),
+    Ret = create_table_element(Topic, MaxAge, CT, Payload),
     {reply, {ok, Ret}, State, hibernate};
 
 handle_call({reset_topic, {Topic, Payload}}, _From, State) ->
-    NewTimerState = restart_max_age_timer(Topic),
-    Ret = update_table_element(Topic, NewTimerState, Payload),
+    Ret = update_table_element(Topic, Payload),
+    {reply, {ok, Ret}, State, hibernate};
+
+handle_call({reset_topic, {Topic, MaxAge, Payload}}, _From, State) ->
+    Ret = update_table_element(Topic, MaxAge, Payload),
     {reply, {ok, Ret}, State, hibernate};
 
 handle_call({reset_topic, {Topic, MaxAge, CT, Payload}}, _From, State) ->
-    NewTimerState = restart_max_age_timer(Topic, MaxAge),
-    Ret = update_table_element(Topic, NewTimerState, CT, Payload),
+    Ret = update_table_element(Topic, MaxAge, CT, Payload),
     {reply, {ok, Ret}, State, hibernate};
 
 handle_call({remove_topic, {Topic, _Content}}, _From, State) ->
@@ -146,11 +139,6 @@ handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
     {noreply, State, hibernate}.
 
-handle_info({max_age_timeout, Topic}, State) ->
-    ?LOG(debug, "Max-Age timeout with topic ~p, delete the topic from coap_topic table", [Topic]),
-    set_max_age_timeout(Topic),
-    {noreply, State, hibernate};
-
 handle_info(Info, State) ->
     ?LOG(error, "adapter unexpected info ~p", [Info]),
     {noreply, State, hibernate}.
@@ -167,40 +155,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% Internal Functions
 %%--------------------------------------------------------------------
-create_table_element(Topic, TimerState, CT, <<>>) ->
-    TopicInfo = {Topic, TimerState, CT, <<>>, undefined},
-    ?LOG(debug, "Insert ~p in the coap_topic table", [TopicInfo]),
-    ets:insert_new(?COAP_TOPIC_TABLE, TopicInfo);
-
-create_table_element(Topic, TimerState, CT, Payload) ->
-    TopicInfo = {Topic, TimerState, CT, Payload, erlang:now()},
+create_table_element(Topic, MaxAge, CT, Payload) ->
+    TopicInfo = {Topic, MaxAge, CT, Payload, os:timestamp()},
     ?LOG(debug, "Insert ~p in the coap_topic table", [TopicInfo]),
     ets:insert_new(?COAP_TOPIC_TABLE, TopicInfo).
 
-update_table_element(Topic, TimerState, Payload) ->
-    ?LOG(debug, "Update the topic=~p info of TimerState=~p", [Topic, TimerState]),
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, TimerState}, {4, Payload}, {5, erlang:now()}]).
+update_table_element(Topic, Payload) ->
+    ?LOG(debug, "Update the topic=~p only with Payload", [Topic]),
+    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{4, Payload}, {5, os:timestamp()}]).
 
-update_table_element(Topic, TimerState, CT, <<>>) ->
-    ?LOG(debug, "Update the topic=~p info of TimerState=~p, CT=~p, payload=<<>>", [Topic, TimerState, CT]),
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, TimerState}, {3, CT}]);
+update_table_element(Topic, MaxAge, Payload) ->
+    ?LOG(debug, "Update the topic=~p info of MaxAge=~p and Payload", [Topic, MaxAge]),
+    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, MaxAge}, {4, Payload}, {5, os:timestamp()}]).
 
-update_table_element(Topic, TimerState, CT, Payload) ->
-    ?LOG(debug, "Update the topic=~p info of TimerState=~p, CT=~p, payload=~p", [Topic, TimerState, CT, Payload]),
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, TimerState}, {3, CT}, {4, Payload}, {5, erlang:now()}]).
-
-restart_max_age_timer(Topic) ->
-    TimerState = ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 2),
-    MaxAge = emq_coap_timer:get_timer_length(TimerState),
-    ?LOG(debug, "Stored MaxAge=~p, will restart the timer", [MaxAge]),
-    emq_coap_timer:cancel_timer(TimerState),
-    emq_coap_timer:start_timer(MaxAge, {max_age_timeout, Topic}).
-
-restart_max_age_timer(Topic, MaxAge) ->
-    TimerState = ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 2),
-    emq_coap_timer:cancel_timer(TimerState),
-    emq_coap_timer:start_timer(MaxAge, {max_age_timeout, Topic}).
-
-set_max_age_timeout(Topic) ->
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{5, timeout}]).
-
+update_table_element(Topic, MaxAge, CT, <<>>) ->
+    ?LOG(debug, "Update the topic=~p info of MaxAge=~p, CT=~p, payload=<<>>", [Topic, MaxAge, CT]),
+    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, MaxAge}, {3, CT}, {5, os:timestamp()}]).
