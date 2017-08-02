@@ -49,6 +49,7 @@ To subscribe any topic, issue following command:
 - {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
 - {username} and {password} are optional.
 - if {username} and {password} are not correct, an uauthorized error will be returned.
+- topic is subscribed with qos1.
 
 Unobserve (unsubscribe topic)
 -----------------------------
