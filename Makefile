@@ -4,7 +4,7 @@ PROJECT_VERSION = 2.3
 
 DEPS = lager gen_coap
 dep_lager    = git https://github.com/basho/lager
-dep_gen_coap = git https://github.com/emqtt/gen_coap coap_pub_sub
+dep_gen_coap = git https://github.com/emqtt/gen_coap
 
 BUILD_DEPS = emqttd cuttlefish
 dep_emqttd = git https://github.com/emqtt/emqttd develop
