@@ -5,7 +5,7 @@ PROJECT_VERSION = 2.3
 DEPS = lager gen_coap clique
 dep_lager    = git https://github.com/basho/lager
 dep_gen_coap = git https://github.com/emqtt/gen_coap
-dep_clique   = git https://github.com/turtleDeng/clique
+dep_clique   = git https://github.com/emqtt/clique
 
 BUILD_DEPS = emqttd cuttlefish
 dep_emqttd = git https://github.com/emqtt/emqttd develop
