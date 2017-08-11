@@ -42,4 +42,4 @@ unregister_config() ->
     clique:unregister_config_whitelist(Keys, ?APP).
 
 keys() ->
-    ["coap.port", "coap.keepalive", "coap.enable_stats"].
+    ["coap.port", "coap.keepalive", "coap.enable_stats", "coap.certfile", "coap.keyfile"].
