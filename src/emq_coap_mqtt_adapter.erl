@@ -198,7 +198,7 @@ handle_info({keepalive, check}, StateData = #state{keepalive = KeepAlive}) ->
             {noreply, StateData#state{keepalive = NewKeepAlive}};
         true ->
             ?LOG(debug, "Keepalive timeout", []),
-            {stop, keepalive_timeout, StateData}
+            {stop, normal, StateData}
     end;
 
 
@@ -321,7 +321,7 @@ emit_stats(StateData=#state{proto=ProtoState}) ->
     emit_stats(?PROTO_GET_CLIENT_ID(ProtoState), StateData).
 
 emit_stats(_ClientId, State = #state{enable_stats = false}) ->
-    ?LOG(debug, "The enable_stats is false, skip emit_state~n", []),
+    %%?LOG(debug, "The enable_stats is false, skip emit_state~n", []),
     State;
 
 emit_stats(ClientId, State) ->

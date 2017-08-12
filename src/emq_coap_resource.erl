@@ -26,8 +26,8 @@
 
 -include_lib("emqttd/include/emqttd_protocol.hrl").
 
--export([coap_discover/2, coap_get/4, coap_post/4, coap_put/4, coap_delete/3,
-         coap_observe/4, coap_unobserve/1, handle_info/2, coap_ack/2]).
+-export([coap_discover/2, coap_get/5, coap_post/4, coap_put/4, coap_delete/3,
+         coap_observe/5, coap_unobserve/1, handle_info/2, coap_ack/2]).
 
 -ifdef(TEST).
 -export([topic/1]).
@@ -42,7 +42,7 @@
 coap_discover(_Prefix, _Args) ->
     [{absolute, "mqtt", []}].
 
-coap_get(ChId, ?MQTT_PREFIX, Name, Query) ->
+coap_get(ChId, ?MQTT_PREFIX, Name, Query, _Content) ->
     ?LOG(debug, "coap_get() Name=~p, Query=~p~n", [Name, Query]),
     #coap_mqtt_auth{clientid = Clientid, username = Usr, password = Passwd} = get_auth(Query),
     case emq_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
@@ -60,7 +60,7 @@ coap_get(ChId, ?MQTT_PREFIX, Name, Query) ->
             put(mqtt_client_pid, undefined),
             {error, internal_server_error}
     end;
-coap_get(ChId, Prefix, Name, Query) ->
+coap_get(ChId, Prefix, Name, Query, _Content) ->
     ?LOG(error, "ignore bad put request ChId=~p, Prefix=~p, Name=~p, Query=~p", [ChId, Prefix, Name, Query]),
     {error, bad_request}.
 
@@ -79,13 +79,13 @@ coap_put(_ChId, Prefix, Name, Content) ->
 coap_delete(_ChId, _Prefix, _Name) ->
     {error, method_not_allowed}.
 
-coap_observe(ChId, ?MQTT_PREFIX, [Topic], Ack) ->
+coap_observe(ChId, ?MQTT_PREFIX, [Topic], Ack, Content) ->
     TrueTopic = topic(Topic),
     ?LOG(debug, "observe Topic=~p, Ack=~p", [TrueTopic, Ack]),
     Pid = get(mqtt_client_pid),
     emq_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
-    {ok, {state, ChId, ?MQTT_PREFIX, [TrueTopic]}};
-coap_observe(ChId, Prefix, Name, Ack) ->
+    {ok, {state, ChId, ?MQTT_PREFIX, [TrueTopic]}, content, Content};
+coap_observe(ChId, Prefix, Name, Ack, _Content) ->
     ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Name=~p, Ack=~p", [ChId, Prefix, Name, Ack]),
     {error, bad_request}.
 
