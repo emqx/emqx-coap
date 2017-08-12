@@ -97,8 +97,11 @@ $(RELX_CONF):
 	make -C emq-relx -f Makefile
 	
 
+coap:  $(LIBCOAP_GIT)
+	@echo "make coap"
+	
 $(LIBCOAP_GIT):
-	git clone http://github.com/obgm/libcoap
+	git clone -b v4.1.2 http://github.com/obgm/libcoap
 	cd libcoap && ./autogen.sh && ./configure --enable-documentation=no --enable-tests=no 
 	make -C libcoap -f Makefile
 	

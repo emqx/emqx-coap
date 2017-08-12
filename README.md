@@ -49,6 +49,7 @@ To subscribe any topic, issue following command:
 - {topicname} in URI should be percent-encoded to prevent special characters, such as + and #.
 - {username} and {password} are optional.
 - if {username} and {password} are not correct, an uauthorized error will be returned.
+- topic is subscribed with qos1.
 
 Unobserve (unsubscribe topic)
 -----------------------------
@@ -132,7 +133,7 @@ make
 ```
 libcoap/examples/coap-client -m put -e 1234  "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret"
 ```
-- topic name is topic1
+- topic name is "topic1", NOT "/topic1"
 - client id is client1
 - username is tom
 - password is secret
@@ -143,13 +144,13 @@ libcoap/examples/coap-client -m put -e 1234  "coap://127.0.0.1/mqtt/topic1?c=cli
 ```
 libcoap/examples/coap-client -m get -s 10 "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret"
 ```
-- topic name is topic1
+- topic name is "topic1", NOT "/topic1"
 - client id is client1
 - username is tom
 - password is secret
 - subscribe time is 10 seconds
 
-And you will get following result if anybody sent message with text "1234567" on topic1:
+And you will get following result if any mqtt client or coap client sent message with text "1234567" to topic1:
 
 ```
 v:1 t:CON c:GET i:31ae {} [ ]
@@ -163,6 +164,8 @@ emq_coap gateway does not accept POST and DELETE requests.
 Topics in URI should be percent-encoded, but corresponding uri_path option has percent-encoding converted. Please refer to RFC 7252 section 6.4, "Decomposing URIs into Options":
 
 > Note that these rules completely resolve any percent-encoding.
+
+That implies coap client is responsible to convert any percert-encoding into true character while assembling coap packet.
 
 License
 -------
