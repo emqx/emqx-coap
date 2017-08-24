@@ -25,9 +25,11 @@
 start(_Type, _Args) ->
     {ok, Sup} = emq_coap_sup:start_link(),
     emq_coap_server:start(application:get_env(?APP, port, 5683)),
+    emq_coap_config:register(),
     {ok,Sup}.
 
 prep_stop(State) ->
+	emq_coap_config:unregister(),
     State.
 
 stop(_State) ->
