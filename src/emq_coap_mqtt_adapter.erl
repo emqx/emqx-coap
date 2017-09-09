@@ -77,9 +77,7 @@ client_pid(ClientId, Username, Password, Channel) ->
         {ok, Pid1}                       -> {ok, Pid1};
         {error, {already_started, Pid2}} -> {ok, Pid2};
         {error, auth_failure}            -> {error, auth_failure};
-        Other                            ->
-            ?LOG(error, "client_pid get error ~p, ClientId=~p, Username=~p, Password=~p, Channel=~p", [Other, ClientId, Username, Password, Channel]),
-            {error, Other}
+        Other                            -> {error, Other}
     end.
 
 start(ClientId, Username, Password, Channel) ->

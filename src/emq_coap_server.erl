@@ -28,10 +28,7 @@ start() ->
 
 start(Port) ->
     application:start(gen_coap),
-    coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined),
-    coap_server_registry:add_handler([<<"ps">>], emq_coap_ps_resource, undefined),
-
-    start_udp(Port, erlang:system_info(schedulers)*2),
+    coap_server:start_udp(coap_udp_socket, Port),
 
     CertFile = application:get_env(?APP, certfile, ""),
     KeyFile = application:get_env(?APP, keyfile, ""),
@@ -41,27 +38,10 @@ start(Port) ->
         false ->
             ?LOG(error, "certfile ~p or keyfile ~p are not valid, turn off coap DTLS", [CertFile, KeyFile])
     end,
-
-    % TODO: start topic process by a supervisor
+    coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined),
+    coap_server_registry:add_handler([<<"ps">>], emq_coap_ps_resource, undefined),
     emq_coap_ps_topics:start().
 
 stop() ->
     application:stop(gen_coap).
-
-
-start_udp(_Port, 0) ->
-    ok;
-start_udp(Port, Count) ->
-    Name = "coap_udp_socket_" ++ integer_to_list(Count),
-    Atom = case catch list_to_existing_atom(Name) of
-               {'EXIT', _} -> list_to_atom(Name);
-               ExistAtom   -> ExistAtom
-           end,
-    coap_server:start_udp(Atom, Port),
-    start_udp(Port, Count - 1).
-
-
-logm(Format, Args) ->
-    lager:error(Format, Args).
-
 
