@@ -175,6 +175,15 @@ emq-coap support DTLS to secure UDP data.
 Please config coap.certfile and coap.keyfile in emq_coap.conf. If certfile or keyfile are invalid, DTLS will be turned off and you could read a error message in system log.
 
 
+ClientId, Username, Password and Topic
+--------------------------------------
+ClientId/username/password/topic in the coap URI are the concepts in mqtt. That is to say, emq-coap is trying to fit coap message into mqtt system, by borrowing the client/username/password/topic from mqtt.
+
+The Auth/ACL/Hook features in mqtt also applies on coap stuff. For example:
+- If username/password is not authorized, coap client will get an uauthorized error.
+- If username or clientid is not allowed to published specific topic, coap message will be dropped in fact, although coap client will get an acknoledgement from emq-coap.
+- If a coap message is published, a 'message.publish' hook is able to capture this message as well.
+
 
 
 License
