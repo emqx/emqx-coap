@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2016-2017 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2016-2017 EMQ Enterprise, Inc. (http://emqtt.io)
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -14,8 +14,28 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--define(APP, emq_coap).
+-module(emqx_coap_app).
 
+-behaviour(application).
 
--record(coap_mqtt_auth, {clientid, username, password}).
+-include("emqx_coap.hrl").
+
+-export([start/2, stop/1, prep_stop/1]).
+
+start(_Type, _Args) ->
+    {ok, Sup} = emqx_coap_sup:start_link(),
+    emqx_coap_server:start(application:get_env(?APP, port, 5683)),
+    emqx_coap_config:register(),
+    {ok,Sup}.
+
+prep_stop(State) ->
+	emqx_coap_config:unregister(),
+    State.
+
+stop(_State) ->
+    spawn(
+      fun() ->
+          group_leader(whereis(init), self()),
+          emqx_coap_server:stop()
+      end).
 

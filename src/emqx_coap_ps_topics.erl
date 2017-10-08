@@ -14,15 +14,15 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_ps_topics).
+-module(emqx_coap_ps_topics).
 
 -behaviour(gen_server).
 
--include("emq_coap.hrl").
+-include("emqx_coap.hrl").
 
--include_lib("emqttd/include/emqttd.hrl").
+-include_lib("emqx/include/emqx.hrl").
 
--include_lib("emqttd/include/emqttd_protocol.hrl").
+-include_lib("emqx/include/emqx_mqtt.hrl").
 
 %% API.
 -export([add_topic_info/4, delete_topic_info/1, delete_sub_topics/1, is_topic_existed/1,

@@ -26,9 +26,12 @@
 
 -record(proto_stats, {enable_stats = false, recv_pkt = 0, recv_msg = 0, send_pkt = 0, send_msg = 0}).
 
--include_lib("emqttd/include/emqttd.hrl").
--include_lib("emqttd/include/emqttd_protocol.hrl").
--include_lib("emqttd/include/emqttd_internal.hrl").
+-include_lib("emqx/include/emqx.hrl").
+
+-include_lib("emqx/include/emqx_mqtt.hrl").
+
+-include_lib("emqx/include/emqx_macros.hrl").
+
 -include_lib("eunit/include/eunit.hrl").
 
 start(_, <<"attacker">>, _, _, _) ->
@@ -205,7 +208,7 @@ stats(_) ->
     tl(?record_to_proplist(proto_stats, Stats)).
 
 set_client_stats(ClientId, Statlist) ->
-    ets:insert(test_client_stats, {ClientId, [{'$ts', emqttd_time:now_secs()}|Statlist]}).
+    ets:insert(test_client_stats, {ClientId, [{'$ts', emqx_time:now_secs()}|Statlist]}).
 
 print_table() ->
     List = ets:tab2list(test_client_stats),

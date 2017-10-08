@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_sup).
+-module(emqx_coap_sup).
 
 -behaviour(supervisor).
 
@@ -26,5 +26,5 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init(_Args) ->
-    {ok, { {one_for_all, 10, 3600}, [?CHILD(emq_coap_registry)] }}.
+    {ok, { {one_for_all, 10, 3600}, [?CHILD(emqx_coap_registry)] }}.
 

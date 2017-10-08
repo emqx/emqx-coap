@@ -13,11 +13,11 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 %%--------------------------------------------------------------------
--module (emq_coap_config).
+-module(emqx_coap_config).
 
--include("emq_coap.hrl").
+-include("emqx_coap.hrl").
 
--export ([register/0, unregister/0]).
+-export([register/0, unregister/0]).
 
 %%--------------------------------------------------------------------
 %% API

@@ -14,9 +14,11 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_server).
+-module(emqx_coap_server).
 
--include("emq_coap.hrl").
+-author("Feng Lee <feng@emqtt.io>").
+
+-include("emqx_coap.hrl").
 
 -export([start/0, start/1, stop/0]).
 
@@ -38,9 +40,9 @@ start(Port) ->
         false ->
             ?LOG(error, "certfile ~p or keyfile ~p are not valid, turn off coap DTLS", [CertFile, KeyFile])
     end,
-    coap_server_registry:add_handler([<<"mqtt">>], emq_coap_resource, undefined),
-    coap_server_registry:add_handler([<<"ps">>], emq_coap_ps_resource, undefined),
-    emq_coap_ps_topics:start().
+    coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
+    coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
+    emqx_coap_ps_topics:start().
 
 stop() ->
     application:stop(gen_coap).

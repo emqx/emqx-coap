@@ -1,14 +1,14 @@
-PROJECT = emq_coap
+PROJECT = emqx_coap
 PROJECT_DESCRIPTION = CoAP Gateway
-PROJECT_VERSION = 2.3
+PROJECT_VERSION = 2.4
 
 DEPS = lager gen_coap clique
 dep_lager    = git https://github.com/basho/lager
 dep_gen_coap = git https://github.com/emqtt/gen_coap
 dep_clique   = git https://github.com/emqtt/clique
 
-BUILD_DEPS = emqttd cuttlefish
-dep_emqttd = git https://github.com/emqtt/emqttd develop
+BUILD_DEPS = emqx cuttlefish
+dep_emqx = git https://github.com/emqtt/emqttd X
 dep_cuttlefish = git https://github.com/emqtt/cuttlefish
 
 ERLC_OPTS += +debug_info
@@ -18,4 +18,4 @@ TEST_ERLC_OPTS += +'{parse_transform, lager_transform}'
 include erlang.mk
 
 app.config::
-	./deps/cuttlefish/cuttlefish -l info -e etc/ -c etc/emq_coap.conf -i priv/emq_coap.schema -d data
+	./deps/cuttlefish/cuttlefish -l info -e etc/ -c etc/emqx_coap.conf -i priv/emqx_coap.schema -d data

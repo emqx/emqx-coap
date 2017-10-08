@@ -14,17 +14,14 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_resource).
+-module(emqx_coap_resource).
 
 -behaviour(coap_resource).
 
--include("emq_coap.hrl").
-
+-include_lib("emqx/include/emqx.hrl").
+-include_lib("emqx/include/emqx_mqtt.hrl").
 -include_lib("gen_coap/include/coap.hrl").
 
--include_lib("emqttd/include/emqttd.hrl").
-
--include_lib("emqttd/include/emqttd_protocol.hrl").
 
 -export([coap_discover/2, coap_get/5, coap_post/4, coap_put/4, coap_delete/3,
          coap_observe/5, coap_unobserve/1, handle_info/2, coap_ack/2]).
@@ -45,10 +42,10 @@ coap_discover(_Prefix, _Args) ->
 coap_get(ChId, ?MQTT_PREFIX, Name, Query, _Content) ->
     ?LOG(debug, "coap_get() Name=~p, Query=~p~n", [Name, Query]),
     #coap_mqtt_auth{clientid = Clientid, username = Usr, password = Passwd} = get_auth(Query),
-    case emq_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
+    case emqx_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
         {ok, Pid} ->
             put(mqtt_client_pid, Pid),
-            emq_coap_mqtt_adapter:keepalive(Pid),
+            emqx_coap_mqtt_adapter:keepalive(Pid),
             #coap_content{};
         {error, auth_failure} ->
             put(mqtt_client_pid, undefined),
@@ -70,7 +67,7 @@ coap_post(_ChId, _Prefix, _Name, _Content) ->
 coap_put(_ChId, ?MQTT_PREFIX, [Topic], #coap_content{payload = Payload}) ->
     ?LOG(debug, "put message, Topic=~p, Payload=~p~n", [Topic, Payload]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:publish(Pid, topic(Topic), Payload),
+    emqx_coap_mqtt_adapter:publish(Pid, topic(Topic), Payload),
     ok;
 coap_put(_ChId, Prefix, Name, Content) ->
     ?LOG(error, "put has error, Prefix=~p, Name=~p, Content=~p", [Prefix, Name, Content]),
@@ -83,7 +80,7 @@ coap_observe(ChId, ?MQTT_PREFIX, [Topic], Ack, Content) ->
     TrueTopic = topic(Topic),
     ?LOG(debug, "observe Topic=~p, Ack=~p", [TrueTopic, Ack]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
+    emqx_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
     {ok, {state, ChId, ?MQTT_PREFIX, [TrueTopic]}, content, Content};
 coap_observe(ChId, Prefix, Name, Ack, _Content) ->
     ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Name=~p, Ack=~p", [ChId, Prefix, Name, Ack]),
@@ -92,7 +89,7 @@ coap_observe(ChId, Prefix, Name, Ack, _Content) ->
 coap_unobserve({state, _ChId, ?MQTT_PREFIX, [Topic]}) ->
     ?LOG(debug, "unobserve ~p", [Topic]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:unsubscribe(Pid, Topic),
+    emqx_coap_mqtt_adapter:unsubscribe(Pid, Topic),
     ok;
 coap_unobserve({state, ChId, Prefix, Name}) ->
     ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Name=~p", [ChId, Prefix, Name]),

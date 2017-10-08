@@ -1,11 +1,7 @@
-
 .PHONY: clean, clean_result, start_broker  stop_broker  case1 case2 case3
 
-RELX_CONF    = emq-relx/relx.config
+RELX_CONF    = emqx-rel/relx.config
 LIBCOAP_GIT  = libcoap/README.md
-
-
-
 
 all:  clean_result $(RELX_CONF) $(LIBCOAP_GIT) start_broker clean_result case1  case2  case3 case4 stop_broker
 	@echo "  "
@@ -17,17 +13,15 @@ clean_result:
 
 	
 start_broker:
-	-rm -f emq-relx/_rel/emqttd/log/*
-	-emq-relx/_rel/emqttd/bin/emqttd stop
+	-rm -f emqx-rel/_rel/emqx/log/*
+	-emqx-rel/_rel/emqx/bin/emqx stop
 	sleep 1
-	emq-relx/_rel/emqttd/bin/emqttd start
+	emqx-rel/_rel/emqx/bin/emqx start
 	sleep 1
-	emq-relx/_rel/emqttd/bin/emqttd_ctl plugins load emq_coap
-
+	emqx-rel/_rel/emqx/bin/emqx_ctl plugins load emqx_coap
 
 stop_broker:
-	-emq-relx/_rel/emqttd/bin/emqttd stop
-	
+	-emqx-rel/_rel/emqx/bin/emqx stop
 
 case1:
 	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret" > case1_output.txt &
@@ -61,11 +55,11 @@ case3:
 
 
 case4:
-	# reload emq_coap, does it work as expected?
+	# reload emqx_coap, does it work as expected?
 	sleep 1
-	emq-relx/_rel/emqttd/bin/emqttd_ctl plugins unload emq_coap
+	emqx-rel/_rel/emqx/bin/emqx_ctl plugins unload emqx_coap
 	sleep 1
-	emq-relx/_rel/emqttd/bin/emqttd_ctl plugins load emq_coap
+	emqx-rel/_rel/emqx/bin/emqx_ctl plugins load emqx_coap
 	sleep 1
 	libcoap/examples/coap-client -m get -s 5  "coap://127.0.0.1/mqtt/topic1?c=client1&u=tom&p=secret" > case4_output.txt &
 	sleep 1
@@ -77,24 +71,24 @@ case4:
 
 	
 $(RELX_CONF):
-	git clone https://github.com/emqtt/emq-relx.git
+	git clone https://github.com/emqtt/emqx-rel.git
 	git clone https://github.com/emqtt/emq-coap.git
 	@echo "update emq-coap with this development code"
-	mv emq-coap  emq_coap
-	-rm -rf emq_coap/etc
-	-rm -rf emq_coap/include
-	-rm -rf emq_coap/priv
-	-rm -rf emq_coap/src
-	-rm -rf emq_coap/Makefile
-	cp -rf ../etc      emq_coap/
-	cp -rf ../include  emq_coap/
-	cp -rf ../priv     emq_coap/
-	cp -rf ../src      emq_coap/
-	cp -rf ../Makefile emq_coap/Makefile
-	-mkdir emq-relx/deps
-	mv emq_coap  emq-relx/deps/
+	mv emq-coap  emqx_coap
+	-rm -rf emqx_coap/etc
+	-rm -rf emqx_coap/include
+	-rm -rf emqx_coap/priv
+	-rm -rf emqx_coap/src
+	-rm -rf emqx_coap/Makefile
+	cp -rf ../etc      emqx_coap/
+	cp -rf ../include  emqx_coap/
+	cp -rf ../priv     emqx_coap/
+	cp -rf ../src      emqx_coap/
+	cp -rf ../Makefile emqx_coap/Makefile
+	-mkdir emqx-rel/deps
+	mv emqx_coap  emqx-rel/deps/
 	@echo "start building ..."
-	make -C emq-relx -f Makefile
+	make -C emqx-rel -f Makefile
 	
 
 coap:  $(LIBCOAP_GIT)
@@ -109,33 +103,27 @@ r: rebuild_emq
 	# r short for rebuild_emq
 	@echo " rebuild complete "
 	
-	
 rebuild_emq:
-	-emq-relx/_rel/emqttd/bin/emqttd stop
-	-rm -rf emq-relx/deps/emq_coap/etc
-	-rm -rf emq-relx/deps/emq_coap/include
-	-rm -rf emq-relx/deps/emq_coap/priv
-	-rm -rf emq-relx/deps/emq_coap/src
-	-rm -rf emq-relx/deps/emq_coap/Makefile
-	cp -rf ../etc      emq-relx/deps/emq_coap/
-	cp -rf ../include  emq-relx/deps/emq_coap/
-	cp -rf ../priv     emq-relx/deps/emq_coap/
-	cp -rf ../src      emq-relx/deps/emq_coap/
-	cp -rf ../Makefile emq-relx/deps/emq_coap/Makefile
-	make -C emq-relx -f Makefile
-	
+	-emqx-rel/_rel/emqx/bin/emqx stop
+	-rm -rf emqx-rel/deps/emqx_coap/etc
+	-rm -rf emqx-rel/deps/emqx_coap/include
+	-rm -rf emqx-rel/deps/emqx_coap/priv
+	-rm -rf emqx-rel/deps/emqx_coap/src
+	-rm -rf emqx-rel/deps/emqx_coap/Makefile
+	cp -rf ../etc      emqx-rel/deps/emqx_coap/
+	cp -rf ../include  emqx-rel/deps/emqx_coap/
+	cp -rf ../priv     emqx-rel/deps/emqx_coap/
+	cp -rf ../src      emqx-rel/deps/emqx_coap/
+	cp -rf ../Makefile emqx-rel/deps/emqx_coap/Makefile
+	make -C emqx-rel -f Makefile
 	
 clean: clean_result
 	-rm -f client/*.exe
 	-rm -f client/*.o
-	-rm -rf emq-relx
+	-rm -rf emqx-rel
 	-rm -rf libcoap
-	
-	
 	
 lazy: clean_result start_broker case2  stop_broker
 	# custom your command here
 	@echo "you are so lazy"
-	
-	
 	

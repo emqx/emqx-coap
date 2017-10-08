@@ -1,8 +1,8 @@
 
-emq_coap
+emqx_coap
 =========
 
-emq-coap is a CoAP Gateway for the EMQ Broker. It translates CoAP messages into MQTT messages and make it possible to communiate between CoAP clients and MQTT clients.
+emqx-coap is a CoAP Gateway for the EMQ X Broker. It translates CoAP messages into MQTT messages and make it possible to communiate between CoAP clients and MQTT clients.
 
 
 Client Usage Example
@@ -51,10 +51,10 @@ v:1 t:CON c:GET i:31ae {} [ ]
 The output message is not well formatted which hide "1234567" at the head of the 2nd line.
 
 
-Configure emq-coap
-------------------
+Configure emqx-coap
+-------------------
 
-File: etc/emq_coap.conf
+File: etc/emqx_coap.conf
 
 ```
 coap.port = 5683
@@ -78,7 +78,7 @@ Load emq-coap
 -------------
 
 ```
-./bin/emqttd_ctl plugins load emq_coap
+./bin/emqx_ctl plugins load emqx_coap
 ```
 
 CoAP Client Observe Operation (subscribe topic)
@@ -172,7 +172,7 @@ DTLS
 ----
 emq-coap support DTLS to secure UDP data.
 
-Please config coap.certfile and coap.keyfile in emq_coap.conf. If certfile or keyfile are invalid, DTLS will be turned off and you could read a error message in system log.
+Please config coap.certfile and coap.keyfile in emqx_coap.conf. If certfile or keyfile are invalid, DTLS will be turned off and you could read a error message in system log.
 
 
 ClientId, Username, Password and Topic

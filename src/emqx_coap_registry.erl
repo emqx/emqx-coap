@@ -14,9 +14,11 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_registry).
+-module(emqx_coap_registry).
 
--include("emq_coap.hrl").
+-author("Feng Lee <feng@emqtt.io>").
+
+-include("emqx_coap.hrl").
 
 -behaviour(gen_server).
 

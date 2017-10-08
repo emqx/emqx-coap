@@ -14,9 +14,11 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emq_coap_timer).
+-module(emqx_coap_timer).
 
--include("emq_coap.hrl").
+-author("Feng Lee <feng@emqtt.io>").
+
+-include("emqx_coap.hrl").
 
 -export([cancel_timer/1, start_timer/2, restart_timer/1, kick_timer/1, is_timeout/1, get_timer_length/1]).
 
@@ -37,12 +39,12 @@ kick_timer(State=#timer_state{kickme = true}) ->
     State.
 
 start_timer(Sec, Msg) ->
-    ?LOG(debug, "emq_coap_timer:start_timer ~p", [Sec]),
+    ?LOG(debug, "emqx_coap_timer:start_timer ~p", [Sec]),
     TRef = erlang:send_after(timer:seconds(Sec), self(), Msg),
     #timer_state{interval = Sec, kickme = false, tref = TRef, message = Msg}.
 
 restart_timer(State=#timer_state{interval = Sec, message = Msg}) ->
-    ?LOG(debug, "emq_coap_timer:restart_timer ~p", [Sec]),
+    ?LOG(debug, "emqx_coap_timer:restart_timer ~p", [Sec]),
     TRef = erlang:send_after(timer:seconds(Sec), self(), Msg),
     State#timer_state{kickme = false, tref = TRef}.
 
