@@ -16,6 +16,5 @@
 
 -define(APP, emqx_coap).
 
-
 -record(coap_mqtt_auth, {clientid, username, password}).
 
