@@ -186,6 +186,15 @@ The Auth/ACL/Hook features in mqtt also applies on coap stuff. For example:
 
 
 
+well-known locations
+--------------------
+Discovery always return "</mqtt>,</ps>"
+
+For example
+```
+libcoap/examples/coap-client -m get "coap://127.0.0.1/.well-known/core"
+```
+
 License
 -------
 
