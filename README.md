@@ -1,9 +1,8 @@
 
-emq_coap
+emq-coap
 =========
 
 emq-coap is a CoAP Gateway for the EMQ Broker. It translates CoAP messages into MQTT messages and make it possible to communiate between CoAP clients and MQTT clients.
-
 
 Client Usage Example
 --------------------
@@ -49,7 +48,6 @@ v:1 t:CON c:GET i:31ae {} [ ]
 1234567v:1 t:CON c:GET i:31af {} [ Observe:1, Uri-Path:mqtt, Uri-Path:topic1, Uri-Query:c=client1, Uri-Query:u=tom, Uri-Query:p=secret ]
 ```
 The output message is not well formatted which hide "1234567" at the head of the 2nd line.
-
 
 Configure emq-coap
 ------------------
@@ -114,7 +112,6 @@ To cancel observation, issue following command:
 - {username} and {password} are optional.
 - if {username} and {password} are not correct, an uauthorized error will be returned.
 
-
 CoAP Client Notification Operation (subscribed Message)
 -------------------------------------------------------
 Server will issue an observe-notification as a subscribed message.
@@ -167,13 +164,11 @@ Topics in URI should be percent-encoded, but corresponding uri_path option has p
 
 That implies coap client is responsible to convert any percert-encoding into true character while assembling coap packet.
 
-
 DTLS
 ----
 emq-coap support DTLS to secure UDP data.
 
 Please config coap.certfile and coap.keyfile in emq_coap.conf. If certfile or keyfile are invalid, DTLS will be turned off and you could read a error message in system log.
-
 
 ClientId, Username, Password and Topic
 --------------------------------------
@@ -184,7 +179,14 @@ The Auth/ACL/Hook features in mqtt also applies on coap stuff. For example:
 - If username or clientid is not allowed to published specific topic, coap message will be dropped in fact, although coap client will get an acknoledgement from emq-coap.
 - If a coap message is published, a 'message.publish' hook is able to capture this message as well.
 
+well-known locations
+--------------------
+Discovery always return "</mqtt>,</ps>"
 
+For example
+```
+libcoap/examples/coap-client -m get "coap://127.0.0.1/.well-known/core"
+```
 
 well-known locations
 --------------------
@@ -203,4 +205,5 @@ Apache License Version 2.0
 Author
 ------
 
-Feng Lee <feng@emqtt.io>
+EMQ X Team.
+

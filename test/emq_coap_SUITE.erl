@@ -44,7 +44,7 @@ case01(_Config) ->
     Topic = <<"abc">>, Payload = <<"123">>,
     TopicStr = binary_to_list(Topic),
     URI = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     {ok,changed, _} = Reply,
     timer:sleep(50),
     PubMsg = test_mqtt_broker:get_published_msg(),
@@ -61,7 +61,7 @@ case02(_Config) ->
     Topic = <<"abc">>, TopicStr = binary_to_list(Topic),
     Payload = <<"123">>,
     Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri),
     ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
 
     timer:sleep(100),
@@ -75,7 +75,7 @@ case02(_Config) ->
 
     ?_assertEqual(Payload, PayloadRecv),
 
-    coap_observer:stop(Pid),
+    er_coap_observer:stop(Pid),
     timer:sleep(100),
     SubTopics2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopics2),
@@ -94,7 +94,7 @@ case03(_Config) ->
     Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
     Payload = <<"123">>,
     Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri),
     ?LOGT("observer Uri=~p, Pid=~p, N=~p, Code=~p, Content=~p", [Uri, Pid, N, Code, Content]),
 
     timer:sleep(100),
@@ -107,7 +107,7 @@ case03(_Config) ->
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
     ?_assertEqual(Payload, PayloadRecv),
 
-    coap_observer:stop(Pid),
+    er_coap_observer:stop(Pid),
     timer:sleep(100),
     SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopic2),
@@ -126,7 +126,7 @@ case04(_Config) ->
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
     Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri),
     ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
 
     timer:sleep(100),
@@ -136,7 +136,7 @@ case04(_Config) ->
     Topic2 = <<"a/b">>, Payload2 = <<"UFO">>,
     TopicStr2 = http_uri:encode(binary_to_list(Topic2)),
     URI2 = "coap://127.0.0.1/mqtt/"++TopicStr2++"?c=client1&u=tom&p=secret",
-    Reply2 = coap_client:request(put, URI2, #coap_content{format = <<"application/octet-stream">>, payload = Payload2}),
+    Reply2 = er_coap_client:request(put, URI2, #coap_content{format = <<"application/octet-stream">>, payload = Payload2}),
     {ok,changed, _} = Reply2,
     timer:sleep(50),
     PubMsg2 = test_mqtt_broker:get_published_msg(),
@@ -152,7 +152,7 @@ case04(_Config) ->
     Topic3 = <<"j/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=mike&p=guess",
-    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     {ok,changed, _} = Reply3,
     timer:sleep(50),
     PubMsg3 = test_mqtt_broker:get_published_msg(),
@@ -165,7 +165,7 @@ case04(_Config) ->
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv3}} = Notif3,
     ?_assertEqual(Payload3, PayloadRecv3),
 
-    coap_observer:stop(Pid),
+    er_coap_observer:stop(Pid),
     timer:sleep(100),
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
@@ -190,7 +190,7 @@ case06_keepalive(_Config) ->
     Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
     Payload = <<"123">>,
     Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri),
+    {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri),
     ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
 
     timer:sleep(100),
@@ -203,7 +203,7 @@ case06_keepalive(_Config) ->
     % keepalive action should lead to nothing
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply3 = coap_client:request(get, URI3),
+    Reply3 = er_coap_client:request(get, URI3),
     ?assertMatch({ok,content, _}, Reply3),
     timer:sleep(50),
     PubMsg3 = test_mqtt_broker:get_published_msg(),
@@ -215,7 +215,7 @@ case06_keepalive(_Config) ->
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
     ?_assertEqual(Payload, PayloadRecv),
 
-    coap_observer:stop(Pid),
+    er_coap_observer:stop(Pid),
     timer:sleep(100),
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
@@ -231,7 +231,7 @@ case07_one_clientid_sub_2_topics(_Config) ->
     Topic1 = <<"abc">>, TopicStr1 = binary_to_list(Topic1),
     Payload1 = <<"123">>,
     Uri1 = "coap://127.0.0.1/mqtt/"++TopicStr1++"?c=client1&u=tom&p=secret",
-    {ok, Pid1, N1, Code1, Content1} = coap_observer:observe(Uri1),
+    {ok, Pid1, N1, Code1, Content1} = er_coap_observer:observe(Uri1),
     ?LOGT("observer 1 Pid=~p, N=~p, Code=~p, Content=~p", [Pid1, N1, Code1, Content1]),
     timer:sleep(100),
     SubTopic1 = test_mqtt_broker:get_subscrbied_topics(),
@@ -240,7 +240,7 @@ case07_one_clientid_sub_2_topics(_Config) ->
     Topic2 = <<"x/y">>, TopicStr2 = http_uri:encode(binary_to_list(Topic2)),
     Payload2 = <<"456">>,
     Uri2 = "coap://127.0.0.1/mqtt/"++TopicStr2++"?c=client1&u=tom&p=secret",
-    {ok, Pid2, N2, Code2, Content2} = coap_observer:observe(Uri2),
+    {ok, Pid2, N2, Code2, Content2} = er_coap_observer:observe(Uri2),
     ?LOGT("observer 2 Pid=~p, N=~p, Code=~p, Content=~p", [Pid2, N2, Code2, Content2]),
     timer:sleep(100),
     SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
@@ -258,8 +258,8 @@ case07_one_clientid_sub_2_topics(_Config) ->
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv2}} = Notif2,
     ?_assertEqual(Payload2, PayloadRecv2),
 
-    coap_observer:stop(Pid1),
-    coap_observer:stop(Pid2),
+    er_coap_observer:stop(Pid1),
+    er_coap_observer:stop(Pid2),
     timer:sleep(100),
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
@@ -278,7 +278,7 @@ case10_auth_failure(_Config) ->
     Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=attacker&p=guess",
-    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,uauthorized}, Reply3),
 
     ok = application:stop(emq_coap),
@@ -295,14 +295,14 @@ case11_invalid_parameter(_Config) ->
     Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = http_uri:encode(binary_to_list(Topic3)),
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?cid=client2&u=tom&p=simple",
-    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply3),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% "what=hello" is invaid
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     URI4 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?what=hello",
-    Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    Reply4 = er_coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error, bad_request}, Reply4),
 
     ok = application:stop(emq_coap),
@@ -319,14 +319,14 @@ case12_invalid_topic(_Config) ->
     Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = binary_to_list(Topic3),
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=tom&p=simple",
-    Reply3 = coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply3),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% "+?#" is invaid topic string
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     URI4 = "coap://127.0.0.1/mqtt/"++"+?#"++"?what=hello",
-    Reply4 = coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
+    Reply4 = er_coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply4),
 
     ok = application:stop(emq_coap),
@@ -340,7 +340,7 @@ case13_emit_stats_test(_Config) ->
     Topic = <<"a/b">>, Payload = <<"ET629">>,
     TopicStr = http_uri:encode(binary_to_list(Topic)),
     URI = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client2&u=tom&p=simple",
-    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?assertMatch({ok, _Code, _Content}, Reply),
 
     test_mqtt_broker:print_table(),
