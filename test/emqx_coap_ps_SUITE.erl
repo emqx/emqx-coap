@@ -49,7 +49,7 @@ case01_create(_Config) ->
     Payload = <<"<topic1>;ct=42">>,
     Payload1 = <<"<topic1>;ct=50">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -61,7 +61,7 @@ case01_create(_Config) ->
     timer:sleep(50),
 
     %% post to create the same topic but with different max age and ct value in payload
-    Reply1 = coap_client:request(post, URI, #coap_content{max_age = 70, format = <<"application/link-format">>, payload = Payload1}),
+    Reply1 = er_coap_client:request(post, URI, #coap_content{max_age = 70, format = <<"application/link-format">>, payload = Payload1}),
     {ok,created, #coap_content{location_path = LocPath}} = Reply1,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
     [{TopicInPayload, MaxAge2, CT2, _ResPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(TopicInPayload),
@@ -79,7 +79,7 @@ case02_create(_Config) ->
     TopicInPayloadStr = binary_to_list(TopicInPayload),
     Payload = <<"<topic1>;ct=42">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -96,7 +96,7 @@ case02_create(_Config) ->
     TopicInPayloadStr1 = binary_to_list(TopicInPayload1),
     URI1 = "coap://127.0.0.1/ps/"++TopicInPayloadStr++"?c=client1&u=tom&p=secret",
     FullTopic = list_to_binary(TopicInPayloadStr++"/"++TopicInPayloadStr1),
-    Reply1 = coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
+    Reply1 = er_coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,created, #coap_content{location_path = LocPath1}} = Reply1,
     ?assertEqual([<<"/ps/topic1/subtopic">>] ,LocPath1),
@@ -114,7 +114,7 @@ case03_create(_Config) ->
     TopicInPayload = <<"topic1">>,
     Payload = <<"<topic1>;ct=42">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -137,7 +137,7 @@ case04_create(_Config) ->
     Payload = <<"<topic1>;ct=42">>,
     Payload1 = <<"<topic1>;ct=50">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -150,7 +150,7 @@ case04_create(_Config) ->
     timer:sleep(3000),
 
     %% post to create the same topic, the max age timer will be restarted with the new max age value
-    Reply1 = coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload1}),
+    Reply1 = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload1}),
     {ok,created, #coap_content{location_path = LocPath}} = Reply1,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
     [{TopicInPayload, MaxAge2, CT2, _ResPayload, TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(TopicInPayload),
@@ -176,7 +176,7 @@ case01_publish_post(_Config) ->
     %% post to create topic maintopic/topic1
     URI1 = "coap://127.0.0.1/ps/"++MainTopicStr++"?c=client1&u=tom&p=secret",
     FullTopic = list_to_binary(MainTopicStr++"/"++binary_to_list(TopicInPayload)),
-    Reply1 = coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload}),
+    Reply1 = er_coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,created, #coap_content{location_path = LocPath1}} = Reply1,
     ?assertEqual([<<"/ps/maintopic/topic1">>] ,LocPath1),
@@ -188,7 +188,7 @@ case01_publish_post(_Config) ->
     FullTopicStr = http_uri:encode(binary_to_list(FullTopic)),
     URI2 = "coap://127.0.0.1/ps/"++FullTopicStr++"?c=client1&u=tom&p=secret",
     PubPayload = <<"PUBLISH">>,
-    Reply2 = coap_client:request(post, URI2, #coap_content{format = <<"application/octet-stream">>, payload = PubPayload}),
+    Reply2 = er_coap_client:request(post, URI2, #coap_content{format = <<"application/octet-stream">>, payload = PubPayload}),
     ?LOGT("Reply =~p", [Reply2]),
     {ok,changed, _} = Reply2,
     TopicInfo = [{FullTopic, MaxAge, CT2, PubPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(FullTopic),
@@ -212,7 +212,7 @@ case02_publish_post(_Config) ->
 
     %% post to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -226,7 +226,7 @@ case02_publish_post(_Config) ->
 
     %% post to publish a new message to the same topic "topic1" with different payload
     NewPayload = <<"newpayload">>,
-    Reply1 = coap_client:request(post, URI, #coap_content{format = <<"application/octet-stream">>, payload = NewPayload}),
+    Reply1 = er_coap_client:request(post, URI, #coap_content{format = <<"application/octet-stream">>, payload = NewPayload}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,changed, _} = Reply1,
     [{Topic, MaxAge, CT, NewPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(Topic),
@@ -249,7 +249,7 @@ case03_publish_post(_Config) ->
 
     %% post to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -264,7 +264,7 @@ case03_publish_post(_Config) ->
 
     %% post to publish a new message to the same topic "topic1", but the ct is not same as created
     NewPayload = <<"newpayload">>,
-    Reply1 = coap_client:request(post, URI, #coap_content{format = <<"application/exi">>, payload = NewPayload}),
+    Reply1 = er_coap_client:request(post, URI, #coap_content{format = <<"application/exi">>, payload = NewPayload}),
     ?LOGT("Reply =~p", [Reply1]),
     ?assertEqual({error,bad_request}, Reply1),
 
@@ -281,7 +281,7 @@ case04_publish_post(_Config) ->
 
     %% post to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -308,7 +308,7 @@ case01_publish_put(_Config) ->
     %% post to create topic maintopic/topic1
     URI1 = "coap://127.0.0.1/ps/"++MainTopicStr++"?c=client1&u=tom&p=secret",
     FullTopic = list_to_binary(MainTopicStr++"/"++binary_to_list(TopicInPayload)),
-    Reply1 = coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload}),
+    Reply1 = er_coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,created, #coap_content{location_path = LocPath1}} = Reply1,
     ?assertEqual([<<"/ps/maintopic/topic1">>] ,LocPath1),
@@ -320,7 +320,7 @@ case01_publish_put(_Config) ->
     FullTopicStr = http_uri:encode(binary_to_list(FullTopic)),
     URI2 = "coap://127.0.0.1/ps/"++FullTopicStr++"?c=client1&u=tom&p=secret",
     PubPayload = <<"PUBLISH">>,
-    Reply2 = coap_client:request(put, URI2, #coap_content{format = <<"application/octet-stream">>, payload = PubPayload}),
+    Reply2 = er_coap_client:request(put, URI2, #coap_content{format = <<"application/octet-stream">>, payload = PubPayload}),
     ?LOGT("Reply =~p", [Reply2]),
     {ok,changed, _} = Reply2,
     [{FullTopic, MaxAge, CT2, PubPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(FullTopic),
@@ -343,7 +343,7 @@ case02_publish_put(_Config) ->
 
     %% put to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -357,7 +357,7 @@ case02_publish_put(_Config) ->
 
     %% put to publish a new message to the same topic "topic1" with different payload
     NewPayload = <<"newpayload">>,
-    Reply1 = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = NewPayload}),
+    Reply1 = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = NewPayload}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,changed, _} = Reply1,
     [{Topic, MaxAge, CT, NewPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(Topic),
@@ -380,7 +380,7 @@ case03_publish_put(_Config) ->
 
     %% put to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -395,7 +395,7 @@ case03_publish_put(_Config) ->
 
     %% put to publish a new message to the same topic "topic1", but the ct is not same as created
     NewPayload = <<"newpayload">>,
-    Reply1 = coap_client:request(put, URI, #coap_content{format = <<"application/exi">>, payload = NewPayload}),
+    Reply1 = er_coap_client:request(put, URI, #coap_content{format = <<"application/exi">>, payload = NewPayload}),
     ?LOGT("Reply =~p", [Reply1]),
     ?assertEqual({error,bad_request}, Reply1),
 
@@ -412,7 +412,7 @@ case04_publish_put(_Config) ->
 
     %% put to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(put, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(put, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
@@ -439,7 +439,7 @@ case01_subscribe(_Config) ->
 
     %% First post to create a topic "topic1"
     Uri = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, Uri, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
+    Reply = er_coap_client:request(post, Uri, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = [LocPath]}} = Reply,
     ?assertEqual(<<"/ps/topic1">> ,LocPath),
@@ -450,7 +450,7 @@ case01_subscribe(_Config) ->
 
     %% Subscribe the topic
     Uri1 = "coap://127.0.0.1"++binary_to_list(LocPath)++"?c=client1&u=tom&p=secret",
-    {ok, Pid, N, Code, Content} = coap_observer:observe(Uri1),
+    {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri1),
     ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
 
     timer:sleep(100),
@@ -467,12 +467,12 @@ case01_subscribe(_Config) ->
     ?_assertEqual(Payload, PayloadRecv),
 
     %% GET to read the publish message of the topic
-    Reply1 = coap_client:request(get, Uri1),
+    Reply1 = er_coap_client:request(get, Uri1),
     ?LOGT("Reply=~p", [Reply1]),
     {ok,content, #coap_content{max_age = MaxAgeLeft,payload = <<"123">>}} = Reply1,
     ?_assertEqual(true, MaxAgeLeft<60),
 
-    coap_observer:stop(Pid),
+    er_coap_observer:stop(Pid),
     timer:sleep(100),
     SubTopics2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopics2),
@@ -491,7 +491,7 @@ case02_subscribe(_Config) ->
 
     %% post to publish a new topic "a/b", and the topic is created
     URI = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/a/b">>] ,LocPath),
@@ -505,14 +505,14 @@ case02_subscribe(_Config) ->
 
     %% Subscribe to the timeout topic "a/b", still successfully，got {ok, nocontent} Method
     Uri = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    Reply1 = {ok, _Pid, _N, nocontent, _} = coap_observer:observe(Uri),
-    ?LOGT("Subscribe Reply=~p", [Reply1]),
+    Reply1 = {ok, _Pid, _N, nocontent, _} = er_coap_observer:observe(Uri),
+    ?LOGT("Subscribe Reply=~p", [Reply1]), 
 
     SubTopics = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([Topic], SubTopics),
 
     %% put to publish to topic "a/b"
-    Reply2 = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply2 = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     {ok,changed, #coap_content{}} = Reply2,
     [{Topic, MaxAge1, CT, Payload, TimeStamp}] = emqx_coap_ps_topics:lookup_topic_info(Topic),
     ?assertEqual(60, MaxAge1),
@@ -538,7 +538,7 @@ case03_subscribe(_Config) ->
     TopicStr = binary_to_list(Topic),
     PercentEncodedTopic = http_uri:encode(TopicStr),
     Uri = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    {error, not_found} = coap_observer:observe(Uri),
+    {error, not_found} = er_coap_observer:observe(Uri),
 
     SubTopic = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopic),
@@ -556,7 +556,7 @@ case04_subscribe(_Config) ->
     TopicStr = binary_to_list(Topic),
     PercentEncodedTopic = http_uri:encode(TopicStr),
     Uri = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    {error, bad_request} = coap_observer:observe(Uri),
+    {error, bad_request} = er_coap_observer:observe(Uri),
 
     SubTopic = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopic),
@@ -574,7 +574,7 @@ case01_read(_Config) ->
 
     %% First post to create a topic "topic1"
     Uri = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, Uri, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, Uri, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = [LocPath]}} = Reply,
     ?assertEqual(<<"/ps/topic1">> ,LocPath),
@@ -584,7 +584,7 @@ case01_read(_Config) ->
     ?assertEqual(<<"42">>, CT1),
 
     %% GET to read the publish message of the topic
-    Reply1 = coap_client:request(get, Uri),
+    Reply1 = er_coap_client:request(get, Uri),
     ?LOGT("Reply=~p", [Reply1]),
     {ok,content, #coap_content{max_age = MaxAgeLeft,payload = Payload}} = Reply1,
     ?_assertEqual(true, MaxAgeLeft<60),
@@ -602,7 +602,7 @@ case02_read(_Config) ->
 
     %% First post to publish a topic "topic1"
     Uri = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, Uri, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, Uri, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = [LocPath]}} = Reply,
     ?assertEqual(<<"/ps/topic1">> ,LocPath),
@@ -612,7 +612,7 @@ case02_read(_Config) ->
     ?assertEqual(<<"42">>, CT1),
 
     %% GET to read the publish message of unmatched format, got bad_request
-    Reply1 = coap_client:request(get, Uri, #coap_content{format = <<"application/json">>}),
+    Reply1 = er_coap_client:request(get, Uri, #coap_content{format = <<"application/json">>}),
     ?LOGT("Reply=~p", [Reply1]),
     {error, bad_request} = Reply1,
 
@@ -628,7 +628,7 @@ case03_read(_Config) ->
     timer:sleep(100),
 
     %% GET to read the nexisted topic "topic1", got not_found
-    Reply = coap_client:request(get, Uri),
+    Reply = er_coap_client:request(get, Uri),
     ?LOGT("Reply=~p", [Reply]),
     {error, not_found} = Reply,
 
@@ -645,7 +645,7 @@ case04_read(_Config) ->
 
     %% First post to publish a topic "topic1"
     Uri = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, Uri, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, Uri, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = [LocPath]}} = Reply,
     ?assertEqual(<<"/ps/topic1">> ,LocPath),
@@ -657,7 +657,7 @@ case04_read(_Config) ->
     %% GET to read the publish message of wildcard topic, got bad_request
     WildTopic = binary_to_list(<<"+/topic1">>),
     Uri1 = "coap://127.0.0.1/ps/"++WildTopic++"?c=client1&u=tom&p=secret",
-    Reply1 = coap_client:request(get, Uri1, #coap_content{format = <<"application/json">>}),
+    Reply1 = er_coap_client:request(get, Uri1, #coap_content{format = <<"application/json">>}),
     ?LOGT("Reply=~p", [Reply1]),
     {error, bad_request} = Reply1,
 
@@ -675,7 +675,7 @@ case05_read(_Config) ->
 
     %% post to publish a new topic "a/b", and the topic is created
     URI = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    Reply = coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/octet-stream">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/a/b">>] ,LocPath),
@@ -688,7 +688,7 @@ case05_read(_Config) ->
     ?assertEqual(true, emqx_coap_ps_topics:is_topic_timeout(Topic)),
 
     %% GET to read the expired publish message, supposed to get {ok, nocontent}, but now got {ok, content}
-    Reply1 = coap_client:request(get, URI),
+    Reply1 = er_coap_client:request(get, URI),
     ?LOGT("Reply=~p", [Reply1]),
     {ok, content, #coap_content{payload = <<>>}}= Reply1,
 
@@ -706,7 +706,7 @@ case01_delete(_Config) ->
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
 
     %% Client post to CREATE topic "a/b"
-    Reply = coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/a/b">>] ,LocPath),
@@ -715,7 +715,7 @@ case01_delete(_Config) ->
     TopicInPayload1 = <<"a/b/c">>,
     PercentEncodedTopic1 = http_uri:encode(binary_to_list(TopicInPayload1)),
     Payload1 = list_to_binary("<"++PercentEncodedTopic1++">;ct=42"),
-    Reply1 = coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
+    Reply1 = er_coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,created, #coap_content{location_path = LocPath1}} = Reply1,
     ?assertEqual([<<"/ps/a/b/c">>] ,LocPath1),
@@ -724,7 +724,7 @@ case01_delete(_Config) ->
 
     %% DELETE the topic "a/b"
     UriD = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    ReplyD = coap_client:request(delete, UriD),
+    ReplyD = er_coap_client:request(delete, UriD),
     ?LOGT("Reply=~p", [Reply1]),
     {ok, deleted, #coap_content{}}= ReplyD,
 
@@ -744,7 +744,7 @@ case02_delete(_Config) ->
 
     %% DELETE the unexisted topic "a/b"
     Uri1 = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    Reply1 = coap_client:request(delete, Uri1),
+    Reply1 = er_coap_client:request(delete, Uri1),
     ?LOGT("Reply=~p", [Reply1]),
     {error, not_found} = Reply1,
 
@@ -760,7 +760,7 @@ case13_emit_stats_test(_Config) ->
     Topic = <<"a/b">>, Payload = <<"ET629">>,
     TopicStr = http_uri:encode(binary_to_list(Topic)),
     URI = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client2&u=tom&p=simple",
-    Reply = coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
+    Reply = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
     ?assertMatch({ok, _Code, _Content}, Reply),
 
     test_mqtt_broker:print_table(),

@@ -29,7 +29,7 @@ start(_Type, _Args) ->
     {ok,Sup}.
 
 prep_stop(State) ->
-	emqx_coap_config:unregister(),
+    emqx_coap_config:unregister(),
     State.
 
 stop(_State) ->
