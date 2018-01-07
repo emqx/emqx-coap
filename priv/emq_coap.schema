@@ -1,13 +1,17 @@
+%%-*- mode: erlang -*-
+%% emq_coap config mapping
 {mapping, "coap.port", "emq_coap.port", [
   {datatype, integer}
 ]}.
-
 
 {mapping, "coap.keepalive", "emq_coap.keepalive", [
   {default, "120s"},
   {datatype, {duration, s}}
 ]}.
 
+{mapping, "coap.enable_stats", "emq_coap.enable_stats", [
+  {datatype, flag}
+]}.
 
 {mapping, "coap.keyfile", "emq_coap.keyfile", [
   {datatype, string}
@@ -16,8 +20,3 @@
 {mapping, "coap.certfile", "emq_coap.certfile", [
   {datatype, string}
 ]}.
-
-{mapping, "coap.enable_stats", "emq_coap.enable_stats", [
-  {datatype, flag}
-]}.
-
