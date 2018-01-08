@@ -55,14 +55,38 @@ Configure emqx-coap
 File: etc/emqx_coap.conf
 
 ```
+## The UDP port that CoAP is listening on.
+##
+## Value: Port
 coap.port = 5683
-coap.keepalive = 120
+
+## Interval for keepalive, specified in seconds.
+##
+## Value: Duration
+##  -s: seconds
+##  -m: minutes
+##  -h: hours
+coap.keepalive = 120s
+
+## Whether to enable statistics for CoAP clients.
+##
+## Value: on | off
 coap.enable_stats = off
-coap.certfile = etc/certs/cert.pem
-coap.keyfile = etc/certs/key.pem
+
+## Private key file for DTLS
+##
+## Value: File
+coap.keyfile = {{ platform_etc_dir }}/certs/key.pem
+
+## Server certificate for DTLS.
+##
+## Value: File
+coap.certfile = {{ platform_etc_dir }}/certs/cert.pem
+
 ```
+
 - coap.port
-  + UDP port for coap.
+  + UDP port for CoAP.
 - coap.keepalive
   + Interval for keepalive, in seconds.
 - coap.enable_stats

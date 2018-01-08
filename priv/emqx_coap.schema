@@ -1,3 +1,6 @@
+%%-*- mode: erlang -*-
+%% emqx_coap config mapping
+
 {mapping, "coap.port", "emqx_coap.port", [
   {datatype, integer}
 ]}.
@@ -6,7 +9,6 @@
   {default, "120s"},
   {datatype, {duration, s}}
 ]}.
-
 
 {mapping, "coap.keyfile", "emqx_coap.keyfile", [
   {datatype, string}
@@ -19,4 +21,5 @@
 {mapping, "coap.enable_stats", "emqx_coap.enable_stats", [
   {datatype, flag}
 ]}.
+
 
