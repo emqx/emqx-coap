@@ -1,6 +1,6 @@
 PROJECT = emq_coap
 PROJECT_DESCRIPTION = CoAP Gateway
-PROJECT_VERSION = 2.3.5
+PROJECT_VERSION = 2.3.6
 
 DEPS = lager gen_coap clique
 dep_lager    = git https://github.com/basho/lager
