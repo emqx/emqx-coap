@@ -24,8 +24,6 @@
 
 -include_lib("emqx/include/emqx_mqtt.hrl").
 
--include_lib("emqx/include/emqx_internal.hrl").
-
 %% API.
 -export([subscribe/2, unsubscribe/2, publish/3, keepalive/1]).
 
@@ -37,10 +35,10 @@
 
 -record(state, {proto, peer, keepalive, sub_topics = [], enable_stats}).
 
--define(DEFAULT_KEEP_ALIVE_DURATION,  60*2).
+-define(DEFAULT_KEEPALIVE_DURATION,  60 * 2).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-MQTT: " ++ Format, Args)).
+        emqx_logger:Level("CoAP-MQTT: " ++ Format, Args)).
 
 -ifdef(TEST).
 -define(PROTO_INIT(A, B, C, D, E),     test_mqtt_broker:start(A, B, C, D, E)).
@@ -115,8 +113,6 @@ init({ClientId, Username, Password, Channel}) ->
         {stop, auth_failure}  -> {stop, auth_failure};
         Other                 -> {stop, Other}
     end.
-
-
 
 handle_call({subscribe, Topic, CoapPid}, _From, State=#state{proto = Proto, sub_topics = TopicList}) ->
     NewTopics = proplists:delete(Topic, TopicList),
@@ -248,8 +244,8 @@ proto_init(ClientId, Username, Password, Channel, EnableStats) ->
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
                                    password = Password,
-                                   clean_sess = true,
-                                   keep_alive = application:get_env(?APP, keepalive, ?DEFAULT_KEEP_ALIVE_DURATION)},
+                                   clean_start = true,
+                                   keepalive = application:get_env(?APP, keepalive, ?DEFAULT_KEEPALIVE_DURATION)},
     case emqx_protocol:received(?CONNECT_PACKET(ConnPkt), Proto) of
         {ok, Proto1}  -> {ok, Proto1};
         {stop, {shutdown, auth_failure}, _Proto2} -> {stop, auth_failure};
@@ -280,21 +276,21 @@ proto_publish(Topic, Payload, Proto) ->
         Other         -> error(Other)
     end.
 
-proto_deliver_ack(#mqtt_message{qos = ?QOS0, pktid = _PacketId}, Proto) ->
+proto_deliver_ack(#mqtt_message{qos = ?QOS0, packet_id = _PacketId}, Proto) ->
     Proto;
-proto_deliver_ack(#mqtt_message{qos = ?QOS1, pktid = PacketId}, Proto) ->
-    case emqx_protocol:received(?PUBACK_PACKET(?PUBACK, PacketId), Proto) of
+proto_deliver_ack(#mqtt_message{qos = ?QOS1, packet_id = PacketId}, Proto) ->
+    case emqx_protocol:received(?PUBACK_PACKET(PacketId), Proto) of
         {ok, NewProto} -> NewProto;
         Other          -> error(Other)
     end;
-proto_deliver_ack(#mqtt_message{qos = ?QOS2, pktid = PacketId}, Proto) ->
-    case emqx_protocol:received(?PUBACK_PACKET(?PUBREC, PacketId), Proto) of
+proto_deliver_ack(#mqtt_message{qos = ?QOS2, packet_id = PacketId}, Proto) ->
+    case emqx_protocol:received(?PUBREC_PACKET(PacketId), Proto) of
         {ok, NewProto} ->
-            case emqx_protocol:received(?PUBACK_PACKET(?PUBCOMP, PacketId), NewProto) of
+            case emqx_protocol:received(?PUBCOMP_PACKET(PacketId), NewProto) of
                 {ok, CurrentProto} -> CurrentProto;
                 Another            -> error(Another)
             end;
-        Other          -> error(Other)
+        Other -> error(Other)
     end.
 
 deliver_to_coap(_TopicName, _Payload, []) ->

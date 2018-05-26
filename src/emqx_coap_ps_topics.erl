@@ -74,17 +74,15 @@ is_topic_existed(Topic) ->
 
 is_topic_timeout(Topic) when is_binary(Topic) ->
     [{Topic, MaxAge, _, _, TimeStamp}] = ets:lookup(?COAP_TOPIC_TABLE, Topic),
-    MaxAge < (timer:now_diff(erlang:now(), TimeStamp) / 1000000).
+    MaxAge < (timer:now_diff(erlang:timestamp(), TimeStamp) / 1000000).
 
 lookup_topic_info(Topic) ->
     ets:lookup(?COAP_TOPIC_TABLE, Topic).
 
 lookup_topic_payload(Topic) ->
-    case ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 4) of
-        Payload ->
-            Payload;
-        badarg ->
-            undefined
+    try ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 4)
+    catch
+        error:badarg -> undefined
     end.
 
 %%--------------------------------------------------------------------
