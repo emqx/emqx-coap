@@ -1,50 +1,45 @@
-%%%===================================================================
-%%% Copyright (c) 2013-2018 EMQ Inc. All rights reserved.
-%%%
-%%% Licensed under the Apache License, Version 2.0 (the "License");
-%%% you may not use this file except in compliance with the License.
-%%% You may obtain a copy of the License at
-%%%
-%%%     http://www.apache.org/licenses/LICENSE-2.0
-%%%
-%%% Unless required by applicable law or agreed to in writing, software
-%%% distributed under the License is distributed on an "AS IS" BASIS,
-%%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-%%% See the License for the specific language governing permissions and
-%%% limitations under the License.
-%%%===================================================================
+%% Copyright (c) 2018 EMQ Technologies Co., Ltd. All Rights Reserved.
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 
 -module(emqx_coap_ps_topics).
 
 -behaviour(gen_server).
 
 -include("emqx_coap.hrl").
-
 -include_lib("emqx/include/emqx.hrl").
-
 -include_lib("emqx/include/emqx_mqtt.hrl").
 
-%% API.
--export([add_topic_info/4, delete_topic_info/1, delete_sub_topics/1, is_topic_existed/1,
-    is_topic_timeout/1, reset_topic_info/2, reset_topic_info/3, reset_topic_info/4,
-    lookup_topic_info/1, lookup_topic_payload/1]).
+-export([start_link/0, stop/1]).
 
--export([start/0, stop/1]).
+-export([add_topic_info/4, delete_topic_info/1, delete_sub_topics/1, is_topic_existed/1,
+         is_topic_timeout/1, reset_topic_info/2, reset_topic_info/3, reset_topic_info/4,
+         lookup_topic_info/1, lookup_topic_payload/1]).
 
 %% gen_server.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {}).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-PS-TOPICS: " ++ Format, Args)).
+        emqx_logger:Level("CoAP-PS-TOPICS: " ++ Format, Args)).
 
 -define(COAP_TOPIC_TABLE, coap_topic).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
+
 start() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -86,13 +81,13 @@ lookup_topic_payload(Topic) ->
     end.
 
 %%--------------------------------------------------------------------
-%% gen_server Callbacks
+%% gen_server callbacks
 %%--------------------------------------------------------------------
+
 init([]) ->
     ets:new(?COAP_TOPIC_TABLE, [set, named_table, protected]),
     ?LOG(debug, "Create the coap_topic table", []),
     {ok, #state{}}.
-
 
 handle_call({add_topic, {Topic, MaxAge, CT, Payload}}, _From, State) ->
     Ret = create_table_element(Topic, MaxAge, CT, Payload),

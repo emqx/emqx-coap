@@ -1,5 +1,4 @@
-%%--------------------------------------------------------------------
-%% Copyright (c) 2016-2018 Feng Lee <feng@emqtt.io>.
+%% Copyright (c) 2018 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -12,7 +11,6 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
-%%--------------------------------------------------------------------
 
 -module(test_mqtt_broker).
 
@@ -20,19 +18,15 @@
 
 -behaviour(gen_server).
 
--define(LOGT(Format, Args), lager:debug("TEST_BROKER: " ++ Format, Args)).
+-include_lib("emqx/include/emqx.hrl").
+-include_lib("emqx/include/emqx_mqtt.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(LOGT(Format, Args), ct:print("TEST_BROKER: " ++ Format, Args)).
 
 -record(state, {subscriber}).
 
 -record(proto_stats, {enable_stats = false, recv_pkt = 0, recv_msg = 0, send_pkt = 0, send_msg = 0}).
-
--include_lib("emqx/include/emqx.hrl").
-
--include_lib("emqx/include/emqx_mqtt.hrl").
-
--include_lib("emqx/include/emqx_internal.hrl").
-
--include_lib("eunit/include/eunit.hrl").
 
 start(_, <<"attacker">>, _, _, _) ->
     {stop, auth_failure};
