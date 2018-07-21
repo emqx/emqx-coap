@@ -10,9 +10,8 @@ data/
 .idea/
 logs/
 *.beam
-emq_coap.d
-
-intergration_test/emq-relx/
+emqx_coap.d
+intergration_test/emqx-rel/
 intergration_test/libcoap/
 intergration_test/case*.txt
-
+.DS_Store

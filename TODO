@@ -1,0 +1,4 @@
+1. Remove the test/test_mqtt_broker and use emqx-ct-helpers
+2. Remove the mqtt adaptor
+3. Remove the emqx_coap_ps_topics.erl
+
