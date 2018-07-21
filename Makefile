@@ -8,7 +8,7 @@ dep_gen_coap = git https://github.com/emqtt/gen_coap v0.2.0
 dep_clique   = git https://github.com/emqtt/clique v0.3.10
 
 BUILD_DEPS = emqttd cuttlefish
-dep_emqttd = git https://github.com/emqtt/emqttd develop
+dep_emqttd = git https://github.com/emqtt/emqttd emq24
 dep_cuttlefish = git https://github.com/emqtt/cuttlefish v2.0.11
 
 TEST_DEPS = er_coap_client
