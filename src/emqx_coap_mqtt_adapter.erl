@@ -166,7 +166,7 @@ handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
     {noreply, State, hibernate}.
 
-handle_info({deliver, Msg = #mqtt_message{topic = TopicName, payload = Payload}},
+handle_info({deliver, Msg = #message{topic = TopicName, payload = Payload}},
              State = #state{proto = Proto, sub_topics = Subscribers}) ->
     %% handle PUBLISH from broker
     ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p, Subscribers=~p", [TopicName, Payload, Subscribers]),
@@ -274,14 +274,14 @@ proto_publish(Topic, Payload, Proto) ->
         Other         -> error(Other)
     end.
 
-proto_deliver_ack(#mqtt_message{qos = ?QOS0, packet_id = _PacketId}, Proto) ->
+proto_deliver_ack(#message{qos = ?QOS0}, Proto) ->
     Proto;
-proto_deliver_ack(#mqtt_message{qos = ?QOS1, packet_id = PacketId}, Proto) ->
+proto_deliver_ack(#message{qos = ?QOS1, headers = #{packet_id := PacketId}}, Proto) ->
     case emqx_protocol:received(?PUBACK_PACKET(PacketId), Proto) of
         {ok, NewProto} -> NewProto;
         Other          -> error(Other)
     end;
-proto_deliver_ack(#mqtt_message{qos = ?QOS2, packet_id = PacketId}, Proto) ->
+proto_deliver_ack(#message{qos = ?QOS2, headers = #{packet_id := PacketId}}, Proto) ->
     case emqx_protocol:received(?PUBREC_PACKET(PacketId), Proto) of
         {ok, NewProto} ->
             case emqx_protocol:received(?PUBCOMP_PACKET(PacketId), NewProto) of
