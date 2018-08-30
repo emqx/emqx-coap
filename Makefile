@@ -3,7 +3,7 @@ PROJECT_DESCRIPTION = EMQ X CoAP Gateway
 PROJECT_VERSION = 3.0
 
 DEPS = gen_coap clique
-dep_gen_coap = git https://github.com/emqx/gen_coap
+dep_gen_coap = git https://github.com/emqx/gen_coap v0.2.1
 dep_clique   = git https://github.com/emqx/clique
 
 BUILD_DEPS = emqx cuttlefish
