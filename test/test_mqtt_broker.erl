@@ -22,6 +22,13 @@
 -include_lib("emqx/include/emqx_mqtt.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-define(record_to_proplist(Def, Rec),
+        lists:zip(record_info(fields, Def), tl(tuple_to_list(Rec)))).
+
+-define(record_to_proplist(Def, Rec, Fields),
+    [{K, V} || {K, V} <- ?record_to_proplist(Def, Rec),
+                         lists:member(K, Fields)]).
+
 -define(LOGT(Format, Args), ct:print("TEST_BROKER: " ++ Format, Args)).
 
 -record(state, {subscriber}).
@@ -108,7 +115,7 @@ handle_call({dispatch, {Topic, Msg, MatchedTopicFilter}}, _From, State=#state{su
     ?LOGT("test broker dispatch topic=~p, Msg=~p, Pid=~p, MatchedTopicFilter=~p, SubList=~p~n", [Topic, Msg, Pid, MatchedTopicFilter, SubList]),
     (Pid == undefined) andalso ?LOGT("!!!!! this topic ~p has never been subscribed, please specify a valid topic filter", [MatchedTopicFilter]),
     ?assertNotEqual(undefined, Pid),
-    Pid ! {deliver, #mqtt_message{topic = Topic, payload = Msg}},
+    Pid ! {deliver, #message{topic = Topic, payload = Msg}},
     {reply, ok, State};
 
 handle_call(stop, _From, State) ->

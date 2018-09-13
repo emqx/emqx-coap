@@ -23,6 +23,8 @@
 -define(PORT, 5683).
 -define(LOGT(Format, Args), ct:print("TEST_SUITE: " ++ Format, Args)).
 
+suite() -> [{timetrap, {seconds, 60}}].
+
 all() -> [case01_create, case02_create, case03_create, case04_create,
           case01_publish_post, case02_publish_post, case03_publish_post, case04_publish_post,
           case01_publish_put, case02_publish_put, case03_publish_put, case04_publish_put,
@@ -31,6 +33,7 @@ all() -> [case01_create, case02_create, case03_create, case04_create,
           case01_delete, case02_delete].
 
 init_per_suite(Config) ->
+    lager_common_test_backend:bounce(debug),
     application:set_env(emqx_coap, enable_stats, true),
     Config.
 

@@ -20,7 +20,7 @@
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/emqx_mqtt.hrl").
 
--export([start/0, stop/1]).
+-export([start_link/0, stop/1]).
 
 -export([add_topic_info/4, delete_topic_info/1, delete_sub_topics/1, is_topic_existed/1,
          is_topic_timeout/1, reset_topic_info/2, reset_topic_info/3, reset_topic_info/4,
@@ -40,7 +40,7 @@
 %% API
 %%--------------------------------------------------------------------
 
-start() ->
+start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 stop(Pid) ->

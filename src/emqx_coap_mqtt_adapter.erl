@@ -57,7 +57,7 @@
 -define(PROTO_DELIVER_ACK(Msg, State), proto_deliver_ack(Msg, State)).
 -define(PROTO_SHUTDOWN(A, B),          emqx_protocol:shutdown(A, B)).
 -define(PROTO_SEND(A, B),              emqx_protocol:send(A, B)).
--define(PROTO_GET_CLIENT_ID(A),        emqx_protocol:clientid(A)).
+-define(PROTO_GET_CLIENT_ID(A),        emqx_protocol:client_id(A)).
 -define(PROTO_STATS(A),                emqx_protocol:stats(A)).
 -define(SET_CLIENT_STATS(A,B),         emqx_stats:set_client_stats(A,B)).
 -endif.
@@ -238,7 +238,7 @@ code_change(_OldVsn, State, _Extra) ->
 proto_init(ClientId, Username, Password, Channel, EnableStats) ->
     SendFun = fun(_Packet) -> ok end,
     PktOpts = [{max_clientid_len, 96}, {max_packet_size, 512}, {client_enable_stats, EnableStats}],
-    Proto = emqx_protocol:init(Channel, SendFun, PktOpts),
+    Proto = emqx_protocol:init(#{peername => Channel, peercert => nossl, sendfun => SendFun}, PktOpts),
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
                                    password = Password,
