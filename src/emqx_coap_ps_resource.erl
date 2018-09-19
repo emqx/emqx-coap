@@ -39,8 +39,9 @@
 coap_discover(_Prefix, _Args) ->
     [{absolute, [<<"ps">>], []}].
 
-coap_get(ChId, ?PS_PREFIX, [Topic], Query, Content=#coap_content{format = Format}) ->
-    ?LOG(debug, "coap_get() Name=~p, Query=~p~n", [Topic, Query]),
+coap_get(ChId, ?PS_PREFIX, TopicPath, Query, Content=#coap_content{format = Format}) when TopicPath =/= [] ->
+    Topic = topic(TopicPath),
+    ?LOG(debug, "coap_get() Topic=~p, Query=~p~n", [Topic, Query]),
     #coap_mqtt_auth{clientid = Clientid, username = Usr, password = Passwd} = get_auth(Query),
     case emqx_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
         {ok, Pid} ->
@@ -63,66 +64,66 @@ coap_get(ChId, ?PS_PREFIX, [Topic], Query, Content=#coap_content{format = Format
             put(mqtt_client_pid, undefined),
             {error, internal_server_error}
     end;
-coap_get(ChId, Prefix, Name, Query, _Content) ->
-    ?LOG(error, "ignore bad put request ChId=~p, Prefix=~p, Name=~p, Query=~p", [ChId, Prefix, Name, Query]),
+coap_get(ChId, Prefix, TopicPath, Query, _Content) ->
+    ?LOG(error, "ignore bad get request ChId=~p, Prefix=~p, TopicPath=~p, Query=~p", [ChId, Prefix, TopicPath, Query]),
     {error, bad_request}.
 
-coap_post(_ChId, ?PS_PREFIX, Name, #coap_content{format = Format, payload = Payload, max_age = MaxAge}) ->
-    ?LOG(debug, "coap_post() Name=~p, MaxAge=~p, Format=~p~n", [Name, MaxAge, Format]),
-    TopicPrefix = get_binary(Name),
+coap_post(_ChId, ?PS_PREFIX, TopicPath, #coap_content{format = Format, payload = Payload, max_age = MaxAge}) when TopicPath =/= [] ->
+    Topic = topic(TopicPath),
+    ?LOG(debug, "coap_post() Topic=~p, MaxAge=~p, Format=~p~n", [Topic, MaxAge, Format]),
     case Format of
         %% We treat ct of "application/link-format" as CREATE message
         <<"application/link-format">> ->
-            handle_received_create(TopicPrefix, MaxAge, Payload);
+            handle_received_create(Topic, MaxAge, Payload);
         %% We treat ct of other values as PUBLISH message
         Other ->
             ?LOG(debug, "coap_post() receive payload format=~p, will process as PUBLISH~n", [Format]),
-            handle_received_publish(TopicPrefix, MaxAge, Other, Payload)
+            handle_received_publish(Topic, MaxAge, Other, Payload)
     end;
 
-coap_post(_ChId, _Prefix, _Name, _Content) ->
+coap_post(_ChId, _Prefix, _TopicPath, _Content) ->
     {error, method_not_allowed}.
 
-coap_put(_ChId, ?PS_PREFIX, Name, #coap_content{max_age = MaxAge, format = Format, payload = Payload}) ->
-    Topic = get_binary(Name),
+coap_put(_ChId, ?PS_PREFIX, TopicPath, #coap_content{max_age = MaxAge, format = Format, payload = Payload}) when TopicPath =/= [] ->
+    Topic = topic(TopicPath),
     ?LOG(debug, "put message, Topic=~p, Payload=~p~n", [Topic, Payload]),
     handle_received_publish(Topic, MaxAge, Format, Payload);
 
-coap_put(_ChId, Prefix, Name, Content) ->
-    ?LOG(error, "put has error, Prefix=~p, Name=~p, Content=~p", [Prefix, Name, Content]),
+coap_put(_ChId, Prefix, TopicPath, Content) ->
+    ?LOG(error, "put has error, Prefix=~p, TopicPath=~p, Content=~p", [Prefix, TopicPath, Content]),
     {error, bad_request}.
 
-coap_delete(_ChId, ?PS_PREFIX, Name) ->
-    Topic = get_binary(Name),
-    delete_topic_info(Topic);
+coap_delete(_ChId, ?PS_PREFIX, TopicPath) ->
+    delete_topic_info(topic(TopicPath));
 
-coap_delete(_ChId, _Prefix, _Name) ->
+coap_delete(_ChId, _Prefix, _TopicPath) ->
     {error, method_not_allowed}.
 
-coap_observe(ChId, ?PS_PREFIX, [Topic], Ack, Content) ->
-    TrueTopic = topic(Topic),
-    ?LOG(debug, "observe Topic=~p, Ack=~p，Content=~p", [TrueTopic, Ack, Content]),
+coap_observe(ChId, ?PS_PREFIX, TopicPath, Ack, Content) when TopicPath =/= [] ->
+    Topic = topic(TopicPath),
+    ?LOG(debug, "observe Topic=~p, Ack=~p，Content=~p", [Topic, Ack, Content]),
     Pid = get(mqtt_client_pid),
-    emqx_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
-    Code = case emqx_coap_ps_topics:is_topic_timeout(TrueTopic) of
+    emqx_coap_mqtt_adapter:subscribe(Pid, Topic),
+    Code = case emqx_coap_ps_topics:is_topic_timeout(Topic) of
                true  ->
                    nocontent;
                false->
                    content
            end,
-    {ok, {state, ChId, ?PS_PREFIX, [TrueTopic]}, Code, Content};
+    {ok, {state, ChId, ?PS_PREFIX, [Topic]}, Code, Content};
 
-coap_observe(ChId, Prefix, Name, Ack, _Content) ->
-    ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Name=~p, Ack=~p", [ChId, Prefix, Name, Ack]),
+coap_observe(ChId, Prefix, TopicPath, Ack, _Content) ->
+    ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, TopicPath=~p, Ack=~p", [ChId, Prefix, TopicPath, Ack]),
     {error, bad_request}.
 
-coap_unobserve({state, _ChId, ?PS_PREFIX, [Topic]}) ->
+coap_unobserve({state, _ChId, ?PS_PREFIX, TopicPath}) when TopicPath =/= [] ->
+    Topic = topic(TopicPath),
     ?LOG(debug, "unobserve ~p", [Topic]),
     Pid = get(mqtt_client_pid),
     emqx_coap_mqtt_adapter:unsubscribe(Pid, Topic),
     ok;
-coap_unobserve({state, ChId, Prefix, Name}) ->
-    ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Name=~p", [ChId, Prefix, Name]),
+coap_unobserve({state, ChId, Prefix, TopicPath}) ->
+    ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, TopicPath=~p", [ChId, Prefix, TopicPath]),
     ok.
 
 handle_info({dispatch, Topic, Payload}, State) ->
@@ -154,19 +155,6 @@ get_auth([<<$p, $=, Rest/binary>>|T], Auth=#coap_mqtt_auth{}) ->
 get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     ?LOG(error, "ignore unknown parameter ~p", [Param]),
     get_auth(T, Auth).
-
-topic(TopicBinary) ->
-    %% RFC 7252 section 6.4. Decomposing URIs into Options
-    %%     Note that these rules completely resolve any percent-encoding.
-    %% That is to say: URI may have percent-encoding. But coap options has no percent-encoding at all.
-    TopicBinary.
-
-get_binary([]) ->
-    <<>>;
-get_binary([<<>>]) ->
-    <<>>;
-get_binary([Binary]) when is_binary(Binary) ->
-    Binary.
 
 add_topic_info(publish, Topic, MaxAge, Format, Payload) when is_binary(Topic), Topic =/= <<>>  ->
     case emqx_coap_ps_topics:lookup_topic_info(Topic) of
@@ -311,3 +299,11 @@ delete_topic_info(Topic) ->
             emqx_coap_ps_topics:delete_sub_topics(Topic)
     end.
 
+topic(Topic) when is_binary(Topic) -> Topic;
+topic([]) -> <<>>;
+topic([Path | TopicPath]) ->
+    case topic(TopicPath) of
+        <<>> -> Path;
+        RemTopic ->
+            <<Path/binary, $/, RemTopic/binary>>
+    end.
