@@ -3,7 +3,7 @@ PROJECT_DESCRIPTION = EMQ X CoAP Gateway
 PROJECT_VERSION = 3.0
 
 DEPS = gen_coap clique
-dep_gen_coap = git https://github.com/emqx/gen_coap v0.2.2
+dep_gen_coap = git https://github.com/emqx/gen_coap emqx30_shawn
 dep_clique   = git https://github.com/emqx/clique
 
 BUILD_DEPS = emqx cuttlefish
@@ -18,6 +18,8 @@ ERLC_OPTS += +'{parse_transform, lager_transform}'
 TEST_ERLC_OPTS += +'{parse_transform, lager_transform}'
 
 include erlang.mk
+
+NO_AUTOPATCH = cuttlefish
 
 app.config::
 	./deps/cuttlefish/cuttlefish -l info -e etc/ -c etc/emqx_coap.conf -i priv/emqx_coap.schema -d data

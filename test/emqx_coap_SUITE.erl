@@ -26,9 +26,18 @@
 suite() -> [{timetrap, {seconds, 30}}].
 
 all() ->
-    [case01, case02, case03, case04, case05, case06_keepalive,
-     case07_one_clientid_sub_2_topics, case10_auth_failure,
-     case11_invalid_parameter, case12_invalid_topic, case13_emit_stats_test].
+    [ case01
+    , case02
+    , case03
+    , case04
+    , case05
+    , case06_keepalive
+    , case07_one_clientid_sub_2_topics
+    , case10_auth_failure
+    , case11_invalid_parameter
+    , case12_invalid_topic
+    , case13_emit_stats_test
+    ].
 
 init_per_suite(Config) ->
     lager_common_test_backend:bounce(debug),
@@ -315,13 +324,13 @@ case12_invalid_topic(_Config) ->
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% "a/b" is not invaid, "a%02Fb" is a valid topic string
+    %% "a/b" is a valid topic string
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = binary_to_list(Topic3),
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=tom&p=simple",
     Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
-    ?assertMatch({error,bad_request}, Reply3),
+    ?assertMatch({ok,changed,_Content}, Reply3),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% "+?#" is invaid topic string

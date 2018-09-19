@@ -45,7 +45,7 @@
 -define(PROTO_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
 -define(PROTO_DELIVER_ACK(A1, A2),     A2).
 -define(PROTO_SHUTDOWN(A, B),          ok).
--define(PROTO_SEND(A, B),              {ok, B}).
+-define(PROTO_SEND(A, PckId, B),       {ok, B}).
 -define(PROTO_GET_CLIENT_ID(A),        test_mqtt_broker:clientid(A)).
 -define(PROTO_STATS(A),                test_mqtt_broker:stats(A)).
 -define(SET_CLIENT_STATS(A,B),         test_mqtt_broker:set_client_stats(A,B)).
@@ -56,7 +56,7 @@
 -define(PROTO_PUBLISH(A1, A2, P),      proto_publish(A1, A2, P)).
 -define(PROTO_DELIVER_ACK(Msg, State), proto_deliver_ack(Msg, State)).
 -define(PROTO_SHUTDOWN(A, B),          emqx_protocol:shutdown(A, B)).
--define(PROTO_SEND(A, B),              emqx_protocol:send(A, B)).
+-define(PROTO_SEND(Msg, PckId, B),     emqx_protocol:send(emqx_packet:from_message(PckId, Msg), B)).
 -define(PROTO_GET_CLIENT_ID(A),        emqx_protocol:client_id(A)).
 -define(PROTO_STATS(A),                emqx_protocol:stats(A)).
 -define(SET_CLIENT_STATS(A,B),         emqx_stats:set_client_stats(A,B)).
@@ -166,13 +166,13 @@ handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
     {noreply, State, hibernate}.
 
-handle_info({deliver, Msg = #message{topic = TopicName, payload = Payload}},
+handle_info({deliver, {publish, PacketId, Msg = #message{topic = TopicName, payload = Payload}} },
              State = #state{proto = Proto, sub_topics = Subscribers}) ->
     %% handle PUBLISH from broker
     ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p, Subscribers=~p", [TopicName, Payload, Subscribers]),
     NewProto = ?PROTO_DELIVER_ACK(Msg, Proto),
     deliver_to_coap(TopicName, Payload, Subscribers),
-    {ok, NewerProto} = ?PROTO_SEND(Msg, NewProto),
+    {ok, NewerProto} = ?PROTO_SEND(Msg, PacketId, NewProto),
     {noreply, State#state{proto = NewerProto}};
 
 handle_info({suback, _MsgId, [_GrantedQos]}, State) ->
@@ -252,7 +252,7 @@ proto_init(ClientId, Username, Password, Channel, EnableStats) ->
 
 proto_subscribe(Topic, Proto) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    case emqx_protocol:received(?SUBSCRIBE_PACKET(1, [{Topic, ?QOS1}]), Proto) of
+    case emqx_protocol:received(?SUBSCRIBE_PACKET(1, [{Topic, #{rh => 0, rap => 0, nl => 0, qos => ?QOS1}}]), Proto) of
         {ok, Proto1}  -> Proto1;
         Other         -> error(Other)
     end.
