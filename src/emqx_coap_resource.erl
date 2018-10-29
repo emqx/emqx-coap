@@ -31,7 +31,7 @@
 -define(MQTT_PREFIX, [<<"mqtt">>]).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-RES: " ++ Format, Args)).
+    logger:Level("CoAP-RES: " ++ Format, Args)).
 
 % resource operations
 coap_discover(_Prefix, _Args) ->

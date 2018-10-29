@@ -198,7 +198,7 @@ timer(Sec, Msg) ->
     erlang:send_after(timer:seconds(Sec), self(), Msg).
 
 log(Format, Args) ->
-    lager:debug(Format, Args).
+    logger:debug(Format, Args).
 
 clientid(_) ->
     cleintid_test.

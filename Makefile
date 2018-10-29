@@ -14,8 +14,6 @@ TEST_DEPS = er_coap_client
 dep_er_coap_client = git https://github.com/grutabow/er_coap_client
 
 ERLC_OPTS += +debug_info
-ERLC_OPTS += +'{parse_transform, lager_transform}'
-TEST_ERLC_OPTS += +'{parse_transform, lager_transform}'
 
 include erlang.mk
 

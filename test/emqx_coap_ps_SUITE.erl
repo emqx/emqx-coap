@@ -33,7 +33,6 @@ all() -> [case01_create, case02_create, case03_create, case04_create,
           case01_delete, case02_delete].
 
 init_per_suite(Config) ->
-    lager_common_test_backend:bounce(debug),
     application:set_env(emqx_coap, enable_stats, true),
     Config.
 

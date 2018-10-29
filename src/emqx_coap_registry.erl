@@ -33,7 +33,7 @@
 -define(RESPONSE_REF_TAB, coap_response_process_ref).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-REG: " ++ Format, Args)).
+    logger:Level("CoAP-REG: " ++ Format, Args)).
 
 
 %% ------------------------------------------------------------------

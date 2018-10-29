@@ -31,7 +31,7 @@
 -define(PS_PREFIX, [<<"ps">>]).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-PS-RES: " ++ Format, Args)).
+    logger:Level("CoAP-PS-RES: " ++ Format, Args)).
 
 %%--------------------------------------------------------------------
 %% Resource Callbacks
