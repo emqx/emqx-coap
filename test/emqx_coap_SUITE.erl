@@ -40,7 +40,6 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-    lager_common_test_backend:bounce(debug),
     application:set_env(emqx_coap, enable_stats, true),
     Config.
 
