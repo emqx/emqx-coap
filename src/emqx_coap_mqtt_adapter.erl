@@ -252,7 +252,7 @@ proto_init(ClientId, Username, Password, Channel, EnableStats) ->
 
 proto_subscribe(Topic, Proto) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    case emqx_protocol:received(?SUBSCRIBE_PACKET(1, [{Topic, #{rh => 0, rap => 0, nl => 0, qos => ?QOS1}}]), Proto) of
+    case emqx_protocol:received(?SUBSCRIBE_PACKET(1, [{Topic, #{rh => 0, rap => 0, nl => 0, qos => ?QOS_1}}]), Proto) of
         {ok, Proto1}  -> Proto1;
         Other         -> error(Other)
     end.
@@ -266,7 +266,7 @@ proto_unsubscribe(Topic, Proto) ->
 
 proto_publish(Topic, Payload, Proto) ->
     ?LOG(debug, "publish Topic=~p, Payload=~p", [Topic, Payload]),
-    Publish = #mqtt_packet{header   = #mqtt_packet_header{type = ?PUBLISH, qos = ?QOS0},
+    Publish = #mqtt_packet{header   = #mqtt_packet_header{type = ?PUBLISH, qos = ?QOS_0},
         variable = #mqtt_packet_publish{topic_name = Topic, packet_id = 1},
         payload  = Payload},
     case emqx_protocol:received(Publish, Proto) of
@@ -274,14 +274,14 @@ proto_publish(Topic, Payload, Proto) ->
         Other         -> error(Other)
     end.
 
-proto_deliver_ack(#message{qos = ?QOS0}, Proto) ->
+proto_deliver_ack(#message{qos = ?QOS_0}, Proto) ->
     Proto;
-proto_deliver_ack(#message{qos = ?QOS1, headers = #{packet_id := PacketId}}, Proto) ->
+proto_deliver_ack(#message{qos = ?QOS_1, headers = #{packet_id := PacketId}}, Proto) ->
     case emqx_protocol:received(?PUBACK_PACKET(PacketId), Proto) of
         {ok, NewProto} -> NewProto;
         Other          -> error(Other)
     end;
-proto_deliver_ack(#message{qos = ?QOS2, headers = #{packet_id := PacketId}}, Proto) ->
+proto_deliver_ack(#message{qos = ?QOS_2, headers = #{packet_id := PacketId}}, Proto) ->
     case emqx_protocol:received(?PUBREC_PACKET(PacketId), Proto) of
         {ok, NewProto} ->
             case emqx_protocol:received(?PUBCOMP_PACKET(PacketId), NewProto) of
