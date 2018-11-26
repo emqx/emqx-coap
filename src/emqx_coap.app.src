@@ -1,0 +1,10 @@
+{application,emqx_coap,
+             [{description,"EMQ X CoAP Gateway"},
+              {vsn,"3.0"},
+              {modules,[]},
+              {registered,[]},
+              {applications, [kernel, stdlib, emqx]},
+              {env,[]},
+              {licenses, ["Apache-2.0"]},
+              {links, ["Github", "https://github.com/emqx/emqx-coap"]}
+             ]}.
