@@ -5,11 +5,11 @@ PROJECT_VERSION = 3.0
 DEPS = gen_coap clique
 
 dep_gen_coap = git-emqx https://github.com/emqx/gen_coap v0.2.2
-dep_clique   = git-emqx https://github.com/emqx/clique develop
+dep_clique   = git-emqx https://github.com/emqx/clique v0.3.11
 
 BUILD_DEPS = emqx cuttlefish
 dep_emqx = git-emqx https://github.com/emqx/emqx emqx30
-dep_cuttlefish = git-emqx https://github.com/emqx/cuttlefish emqx30
+dep_cuttlefish = git-emqx https://github.com/emqx/cuttlefish v2.1.1
 
 TEST_DEPS = er_coap_client
 dep_er_coap_client = git-emqx https://github.com/grutabow/er_coap_client master
