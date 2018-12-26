@@ -1,5 +1,4 @@
-%%--------------------------------------------------------------------
-%% Copyright (c) 2016-2018 EMQ Enterprise, Inc. (http://emqtt.io)
+%% Copyright (c) 2018 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -12,19 +11,15 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
-%%--------------------------------------------------------------------
 
--module(emq_coap_resource).
+-module(emqx_coap_resource).
 
 -behaviour(coap_resource).
 
--include("emq_coap.hrl").
-
+-include("emqx_coap.hrl").
+-include_lib("emqx/include/emqx.hrl").
+-include_lib("emqx/include/emqx_mqtt.hrl").
 -include_lib("gen_coap/include/coap.hrl").
-
--include_lib("emqttd/include/emqttd.hrl").
-
--include_lib("emqttd/include/emqttd_protocol.hrl").
 
 -export([coap_discover/2, coap_get/5, coap_post/4, coap_put/4, coap_delete/3,
          coap_observe/5, coap_unobserve/1, handle_info/2, coap_ack/2]).
@@ -36,23 +31,23 @@
 -define(MQTT_PREFIX, [<<"mqtt">>]).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-RES: " ++ Format, Args)).
+    logger:Level("CoAP-RES: " ++ Format, Args)).
 
 % resource operations
 coap_discover(_Prefix, _Args) ->
     [{absolute, [<<"mqtt">>], []}].
 
-coap_get(ChId, ?MQTT_PREFIX, Name, Query, _Content) ->
-    ?LOG(debug, "coap_get() Name=~p, Query=~p~n", [Name, Query]),
+coap_get(ChId, ?MQTT_PREFIX, Path, Query, _Content) ->
+    ?LOG(debug, "coap_get() Path=~p, Query=~p~n", [Path, Query]),
     #coap_mqtt_auth{clientid = Clientid, username = Usr, password = Passwd} = get_auth(Query),
-    case emq_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
+    case emqx_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
         {ok, Pid} ->
             put(mqtt_client_pid, Pid),
-            emq_coap_mqtt_adapter:keepalive(Pid),
+            emqx_coap_mqtt_adapter:keepalive(Pid),
             #coap_content{};
         {error, auth_failure} ->
             put(mqtt_client_pid, undefined),
-            {error, uauthorized};
+            {error, unauthorized};
         {error, bad_request} ->
             put(mqtt_client_pid, undefined),
             {error, bad_request};
@@ -60,42 +55,42 @@ coap_get(ChId, ?MQTT_PREFIX, Name, Query, _Content) ->
             put(mqtt_client_pid, undefined),
             {error, internal_server_error}
     end;
-coap_get(ChId, Prefix, Name, Query, _Content) ->
-    ?LOG(error, "ignore bad put request ChId=~p, Prefix=~p, Name=~p, Query=~p", [ChId, Prefix, Name, Query]),
+coap_get(ChId, Prefix, Path, Query, _Content) ->
+    ?LOG(error, "ignore bad get request ChId=~p, Prefix=~p, Path=~p, Query=~p", [ChId, Prefix, Path, Query]),
     {error, bad_request}.
 
-coap_post(_ChId, _Prefix, _Name, _Content) ->
+coap_post(_ChId, _Prefix, _Topic, _Content) ->
     {error, method_not_allowed}.
 
-coap_put(_ChId, ?MQTT_PREFIX, [Topic], #coap_content{payload = Payload}) ->
+coap_put(_ChId, ?MQTT_PREFIX, Topic, #coap_content{payload = Payload}) when Topic =/= [] ->
     ?LOG(debug, "put message, Topic=~p, Payload=~p~n", [Topic, Payload]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:publish(Pid, topic(Topic), Payload),
+    emqx_coap_mqtt_adapter:publish(Pid, topic(Topic), Payload),
     ok;
-coap_put(_ChId, Prefix, Name, Content) ->
-    ?LOG(error, "put has error, Prefix=~p, Name=~p, Content=~p", [Prefix, Name, Content]),
+coap_put(_ChId, Prefix, Topic, Content) ->
+    ?LOG(error, "put has error, Prefix=~p, Topic=~p, Content=~p", [Prefix, Topic, Content]),
     {error, bad_request}.
 
-coap_delete(_ChId, _Prefix, _Name) ->
+coap_delete(_ChId, _Prefix, _Topic) ->
     {error, method_not_allowed}.
 
-coap_observe(ChId, ?MQTT_PREFIX, [Topic], Ack, Content) ->
+coap_observe(ChId, ?MQTT_PREFIX, Topic, Ack, Content) when Topic =/= [] ->
     TrueTopic = topic(Topic),
     ?LOG(debug, "observe Topic=~p, Ack=~p", [TrueTopic, Ack]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
+    emqx_coap_mqtt_adapter:subscribe(Pid, TrueTopic),
     {ok, {state, ChId, ?MQTT_PREFIX, [TrueTopic]}, content, Content};
-coap_observe(ChId, Prefix, Name, Ack, _Content) ->
-    ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Name=~p, Ack=~p", [ChId, Prefix, Name, Ack]),
+coap_observe(ChId, Prefix, Topic, Ack, _Content) ->
+    ?LOG(error, "unknown observe request ChId=~p, Prefix=~p, Topic=~p, Ack=~p", [ChId, Prefix, Topic, Ack]),
     {error, bad_request}.
 
-coap_unobserve({state, _ChId, ?MQTT_PREFIX, [Topic]}) ->
+coap_unobserve({state, _ChId, ?MQTT_PREFIX, Topic}) when Topic =/= [] ->
     ?LOG(debug, "unobserve ~p", [Topic]),
     Pid = get(mqtt_client_pid),
-    emq_coap_mqtt_adapter:unsubscribe(Pid, Topic),
+    emqx_coap_mqtt_adapter:unsubscribe(Pid, topic(Topic)),
     ok;
-coap_unobserve({state, ChId, Prefix, Name}) ->
-    ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Name=~p", [ChId, Prefix, Name]),
+coap_unobserve({state, ChId, Prefix, Topic}) ->
+    ?LOG(error, "ignore unknown unobserve request ChId=~p, Prefix=~p, Topic=~p", [ChId, Prefix, Topic]),
     ok.
 
 handle_info({dispatch, Topic, Payload}, State) ->
@@ -122,8 +117,12 @@ get_auth([Param|T], Auth=#coap_mqtt_auth{}) ->
     ?LOG(error, "ignore unknown parameter ~p", [Param]),
     get_auth(T, Auth).
 
-topic(TopicBinary) ->
-    %% RFC 7252 section 6.4. Decomposing URIs into Options
-    %%     Note that these rules completely resolve any percent-encoding.
-    %% That is to say: URI may have percent-encoding. But coap options has no percent-encoding at all.
-    TopicBinary.
+topic(Topic) when is_binary(Topic) -> Topic;
+topic([]) -> <<>>;
+topic([Path | TopicPath]) ->
+    case topic(TopicPath) of
+        <<>> -> Path;
+        RemTopic ->
+            <<Path/binary, $/, RemTopic/binary>>
+    end.
+

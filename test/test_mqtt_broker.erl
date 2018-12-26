@@ -1,5 +1,4 @@
-%%--------------------------------------------------------------------
-%% Copyright (c) 2016-2018 Feng Lee <feng@emqtt.io>.
+%% Copyright (c) 2018 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -12,7 +11,6 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
-%%--------------------------------------------------------------------
 
 -module(test_mqtt_broker).
 
@@ -20,16 +18,22 @@
 
 -behaviour(gen_server).
 
--define(LOGT(Format, Args), lager:debug("TEST_BROKER: " ++ Format, Args)).
+-include_lib("emqx/include/emqx.hrl").
+-include_lib("emqx/include/emqx_mqtt.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(record_to_proplist(Def, Rec),
+        lists:zip(record_info(fields, Def), tl(tuple_to_list(Rec)))).
+
+-define(record_to_proplist(Def, Rec, Fields),
+    [{K, V} || {K, V} <- ?record_to_proplist(Def, Rec),
+                         lists:member(K, Fields)]).
+
+-define(LOGT(Format, Args), ct:print("TEST_BROKER: " ++ Format, Args)).
 
 -record(state, {subscriber}).
 
 -record(proto_stats, {enable_stats = false, recv_pkt = 0, recv_msg = 0, send_pkt = 0, send_msg = 0}).
-
--include_lib("emqttd/include/emqttd.hrl").
--include_lib("emqttd/include/emqttd_protocol.hrl").
--include_lib("emqttd/include/emqttd_internal.hrl").
--include_lib("eunit/include/eunit.hrl").
 
 start(_, <<"attacker">>, _, _, _) ->
     {stop, auth_failure};
@@ -111,7 +115,7 @@ handle_call({dispatch, {Topic, Msg, MatchedTopicFilter}}, _From, State=#state{su
     ?LOGT("test broker dispatch topic=~p, Msg=~p, Pid=~p, MatchedTopicFilter=~p, SubList=~p~n", [Topic, Msg, Pid, MatchedTopicFilter, SubList]),
     (Pid == undefined) andalso ?LOGT("!!!!! this topic ~p has never been subscribed, please specify a valid topic filter", [MatchedTopicFilter]),
     ?assertNotEqual(undefined, Pid),
-    Pid ! {deliver, #mqtt_message{topic = Topic, payload = Msg}},
+    Pid ! {deliver, {publish, 1, #message{topic = Topic, payload = Msg}}},
     {reply, ok, State};
 
 handle_call(stop, _From, State) ->
@@ -194,7 +198,7 @@ timer(Sec, Msg) ->
     erlang:send_after(timer:seconds(Sec), self(), Msg).
 
 log(Format, Args) ->
-    lager:debug(Format, Args).
+    logger:debug(Format, Args).
 
 clientid(_) ->
     cleintid_test.
@@ -205,7 +209,7 @@ stats(_) ->
     tl(?record_to_proplist(proto_stats, Stats)).
 
 set_client_stats(ClientId, Statlist) ->
-    ets:insert(test_client_stats, {ClientId, [{'$ts', emqttd_time:now_secs()}|Statlist]}).
+    ets:insert(test_client_stats, {ClientId, [{'$ts', emqx_time:now_secs()}|Statlist]}).
 
 print_table() ->
     List = ets:tab2list(test_client_stats),

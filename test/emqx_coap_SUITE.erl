@@ -1,37 +1,46 @@
-%%--------------------------------------------------------------------
-%% Copyright (c) 2016-2018 Feng Lee <feng@emqtt.io>. All Rights Reserved.
+%% Copyright (c) 2018 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
 %%
 %%     http://www.apache.org/licenses/LICENSE-2.0
-%% 
+%%
 %% Unless required by applicable law or agreed to in writing, software
 %% distributed under the License is distributed on an "AS IS" BASIS,
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
-%%--------------------------------------------------------------------
 
--module(emq_coap_SUITE).
+-module(emqx_coap_SUITE).
 
 -compile(export_all).
-
--define(PORT, 5683).
-
--define(LOGT(Format, Args), lager:debug("TEST_SUITE: " ++ Format, Args)).
+-compile(nowarn_export_all).
 
 -include_lib("gen_coap/include/coap.hrl").
-
 -include_lib("eunit/include/eunit.hrl").
 
-all() -> [case01, case02, case03, case04, case05, case06_keepalive, case07_one_clientid_sub_2_topics,
-    case10_auth_failure, case11_invalid_parameter, case12_invalid_topic, case13_emit_stats_test].
+-define(PORT, 5683).
+-define(LOGT(Format, Args), ct:print("TEST_SUITE: " ++ Format, Args)).
+
+suite() -> [{timetrap, {seconds, 30}}].
+
+all() ->
+    [ case01
+    , case02
+    , case03
+    , case04
+    , case05
+    , case06_keepalive
+    , case07_one_clientid_sub_2_topics
+    , case10_auth_failure
+    , case11_invalid_parameter
+    , case12_invalid_topic
+    , case13_emit_stats_test
+    ].
 
 init_per_suite(Config) ->
-    lager_common_test_backend:bounce(debug),
-    application:set_env(emq_coap, enable_stats, true),
+    application:set_env(emqx_coap, enable_stats, true),
     Config.
 
 end_per_suite(Config) ->
@@ -39,7 +48,7 @@ end_per_suite(Config) ->
 
 case01(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
     Topic = <<"abc">>, Payload = <<"123">>,
     TopicStr = binary_to_list(Topic),
@@ -50,12 +59,12 @@ case01(_Config) ->
     PubMsg = test_mqtt_broker:get_published_msg(),
     ?LOGT("PubMsg=~p, Reply=~p~n", [PubMsg, Reply]),
     ?assertEqual({Topic, Payload}, PubMsg),
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case02(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     Topic = <<"abc">>, TopicStr = binary_to_list(Topic),
@@ -80,12 +89,12 @@ case02(_Config) ->
     SubTopics2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopics2),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case03(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -112,12 +121,12 @@ case03(_Config) ->
     SubTopic2 = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopic2),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case04(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -170,21 +179,21 @@ case04(_Config) ->
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case05(_Config) ->
-    {ok, _} = application:ensure_all_started(emq_coap),
+    {ok, _} = application:ensure_all_started(emqx_coap),
     ?LOGT("Started", []),
     timer:sleep(100),
-    application:stop(emq_coap),
+    application:stop(emqx_coap),
     application:stop(gen_coap),
     application:stop(crypto),
     application:stop(ssl).
 
 case06_keepalive(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
@@ -220,12 +229,12 @@ case06_keepalive(_Config) ->
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case07_one_clientid_sub_2_topics(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     Topic1 = <<"abc">>, TopicStr1 = binary_to_list(Topic1),
@@ -264,12 +273,12 @@ case07_one_clientid_sub_2_topics(_Config) ->
     SubTopicFinal = test_mqtt_broker:get_subscrbied_topics(),
     ?_assertEqual([], SubTopicFinal),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case10_auth_failure(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -281,12 +290,12 @@ case10_auth_failure(_Config) ->
     Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,uauthorized}, Reply3),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case11_invalid_parameter(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -305,22 +314,22 @@ case11_invalid_parameter(_Config) ->
     Reply4 = er_coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error, bad_request}, Reply4),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case12_invalid_topic(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %% "a/b" is not invaid, "a%02Fb" is a valid topic string
+    %% "a/b" is a valid topic string
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     Topic3 = <<"a/b">>, Payload3 = <<"ET629">>,
     TopicStr3 = binary_to_list(Topic3),
     URI3 = "coap://127.0.0.1/mqtt/"++TopicStr3++"?c=client2&u=tom&p=simple",
     Reply3 = er_coap_client:request(put, URI3, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
-    ?assertMatch({error,bad_request}, Reply3),
+    ?assertMatch({ok,changed,_Content}, Reply3),
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% "+?#" is invaid topic string
@@ -329,12 +338,12 @@ case12_invalid_topic(_Config) ->
     Reply4 = er_coap_client:request(put, URI4, #coap_content{format = <<"application/octet-stream">>, payload = Payload3}),
     ?assertMatch({error,bad_request}, Reply4),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 case13_emit_stats_test(_Config) ->
     test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emq_coap),
+    {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
 
     Topic = <<"a/b">>, Payload = <<"ET629">>,
@@ -345,7 +354,7 @@ case13_emit_stats_test(_Config) ->
 
     test_mqtt_broker:print_table(),
 
-    ok = application:stop(emq_coap),
+    ok = application:stop(emqx_coap),
     test_mqtt_broker:stop().
 
 receive_notification() ->
@@ -355,3 +364,4 @@ receive_notification() ->
     after 2000 ->
         receive_notification_timeout
     end.
+

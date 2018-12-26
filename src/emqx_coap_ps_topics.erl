@@ -1,5 +1,4 @@
-%%--------------------------------------------------------------------
-%% Copyright (c) 2013-2018 EMQ Enterprise, Inc. (http://emqtt.io)
+%% Copyright (c) 2018 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -12,40 +11,36 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
-%%--------------------------------------------------------------------
 
--module(emq_coap_ps_topics).
+-module(emqx_coap_ps_topics).
 
 -behaviour(gen_server).
 
--include("emq_coap.hrl").
+-include("emqx_coap.hrl").
+-include_lib("emqx/include/emqx.hrl").
+-include_lib("emqx/include/emqx_mqtt.hrl").
 
--include_lib("emqttd/include/emqttd.hrl").
+-export([start_link/0, stop/1]).
 
--include_lib("emqttd/include/emqttd_protocol.hrl").
-
-%% API.
 -export([add_topic_info/4, delete_topic_info/1, delete_sub_topics/1, is_topic_existed/1,
-    is_topic_timeout/1, reset_topic_info/2, reset_topic_info/3, reset_topic_info/4,
-    lookup_topic_info/1, lookup_topic_payload/1]).
-
--export([start/0, stop/1]).
+         is_topic_timeout/1, reset_topic_info/2, reset_topic_info/3, reset_topic_info/4,
+         lookup_topic_info/1, lookup_topic_payload/1]).
 
 %% gen_server.
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {}).
 
 -define(LOG(Level, Format, Args),
-    lager:Level("CoAP-PS-TOPICS: " ++ Format, Args)).
+        emqx_logger:Level("CoAP-PS-TOPICS: " ++ Format, Args)).
 
 -define(COAP_TOPIC_TABLE, coap_topic).
 
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
-start() ->
+
+start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 stop(Pid) ->
@@ -74,27 +69,25 @@ is_topic_existed(Topic) ->
 
 is_topic_timeout(Topic) when is_binary(Topic) ->
     [{Topic, MaxAge, _, _, TimeStamp}] = ets:lookup(?COAP_TOPIC_TABLE, Topic),
-    MaxAge < (timer:now_diff(erlang:now(), TimeStamp) / 1000000).
+    MaxAge < (timer:now_diff(erlang:timestamp(), TimeStamp) / 1000000).
 
 lookup_topic_info(Topic) ->
     ets:lookup(?COAP_TOPIC_TABLE, Topic).
 
 lookup_topic_payload(Topic) ->
-    case ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 4) of
-        Payload ->
-            Payload;
-        badarg ->
-            undefined
+    try ets:lookup_element(?COAP_TOPIC_TABLE, Topic, 4)
+    catch
+        error:badarg -> undefined
     end.
 
 %%--------------------------------------------------------------------
-%% gen_server Callbacks
+%% gen_server callbacks
 %%--------------------------------------------------------------------
+
 init([]) ->
     ets:new(?COAP_TOPIC_TABLE, [set, named_table, protected]),
     ?LOG(debug, "Create the coap_topic table", []),
     {ok, #state{}}.
-
 
 handle_call({add_topic, {Topic, MaxAge, CT, Payload}}, _From, State) ->
     Ret = create_table_element(Topic, MaxAge, CT, Payload),
