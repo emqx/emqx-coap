@@ -71,8 +71,8 @@ case4:
 
 	
 $(RELX_CONF):
-	git clone https://github.com/emqtt/emqx-rel.git
-	git clone https://github.com/emqtt/emq-coap.git
+	git clone https://github.com/emqx/emqx-rel.git
+	git clone https://github.com/emqx/emq-coap.git
 	@echo "update emq-coap with this development code"
 	mv emq-coap  emqx_coap
 	-rm -rf emqx_coap/etc
