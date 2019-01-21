@@ -14,7 +14,7 @@
 
 -module(emqx_coap_registry).
 
--author("Feng Lee <feng@emqtt.io>").
+-author("Feng Lee <feng@emqx.io>").
 
 -include("emqx_coap.hrl").
 

@@ -420,7 +420,7 @@ case04_publish_put(_Config) ->
 
     %% after max age timeout, no publish message to the same topic, the topic info will be deleted
     %%%%%%%%%%%%%%%%%%%%%%%%%%
-    % but there is one thing to do is we don't count in the publish message received from emqttd(from other node).TBD!!!!!!!!!!!!!
+    % but there is one thing to do is we don't count in the publish message received from emqx(from other node).TBD!!!!!!!!!!!!!
     %%%%%%%%%%%%%%%%%%%%%%%%%%
     timer:sleep(6000),
     ?assertEqual(true, emqx_coap_ps_topics:is_topic_timeout(Topic)),
