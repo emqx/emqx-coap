@@ -1,6 +1,6 @@
 {application,emqx_coap,
              [{description,"EMQ X CoAP Gateway"},
-              {vsn,"3.0"},
+              {vsn,"git"},
               {modules,[]},
               {mod,{emqx_coap_app,[]}},
               {registered,[]},
