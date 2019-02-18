@@ -1,6 +1,5 @@
 PROJECT = emqx_coap
 PROJECT_DESCRIPTION = EMQ X CoAP Gateway
-PROJECT_VERSION = 3.1
 
 DEPS = gen_coap clique
 
