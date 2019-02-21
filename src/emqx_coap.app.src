@@ -1,11 +1,10 @@
 {application,emqx_coap,
              [{description,"EMQ X CoAP Gateway"},
-              {vsn,"3.0"},
+              {vsn,"git"},
               {modules,[]},
               {mod,{emqx_coap_app,[]}},
               {registered,[]},
-              {applications, [kernel, stdlib, clique, gen_coap]},
+              {applications,[kernel,stdlib,clique,gen_coap]},
               {env,[]},
-              {licenses, ["Apache-2.0"]},
-              {links, ["Github", "https://github.com/emqx/emqx-coap"]}
-             ]}.
+              {licenses,["Apache-2.0"]},
+              {links,["Github","https://github.com/emqx/emqx-coap"]}]}.
