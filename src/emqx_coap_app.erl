@@ -16,6 +16,8 @@
 
 -behaviour(application).
 
+-emqx_plugin(?MODULE).
+
 -include("emqx_coap.hrl").
 
 -export([start/2, stop/1]).
