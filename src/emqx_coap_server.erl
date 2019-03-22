@@ -16,7 +16,10 @@
 
 -include("emqx_coap.hrl").
 
--export([start/0, start/1, stop/0]).
+-export([ start/0
+        , start/1
+        , stop/0
+        ]).
 
 start() ->
     start(application:get_env(?APP, port, 5683)).

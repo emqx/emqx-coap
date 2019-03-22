@@ -20,7 +20,9 @@
 
 -include("emqx_coap.hrl").
 
--export([start/2, stop/1]).
+-export([ start/2
+        , stop/1
+        ]).
 
 start(_Type, _Args) ->
     {ok, Sup} = emqx_coap_sup:start_link(),
