@@ -21,8 +21,16 @@
 -include_lib("emqx/include/emqx_mqtt.hrl").
 -include_lib("gen_coap/include/coap.hrl").
 
--export([coap_discover/2, coap_get/5, coap_post/4, coap_put/4, coap_delete/3,
-         coap_observe/5, coap_unobserve/1, handle_info/2, coap_ack/2]).
+-export([ coap_discover/2
+        , coap_get/5
+        , coap_post/4
+        , coap_put/4
+        , coap_delete/3
+        , coap_observe/5
+        , coap_unobserve/1
+        , handle_info/2
+        , coap_ack/2
+        ]).
 
 -ifdef(TEST).
 -export([topic/1]).

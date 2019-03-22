@@ -16,7 +16,9 @@
 
 -include("emqx_coap.hrl").
 
--export([register/0, unregister/0]).
+-export([ register/0
+        , unregister/0
+        ]).
 
 %%--------------------------------------------------------------------
 %% API
