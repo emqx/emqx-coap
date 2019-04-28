@@ -10,6 +10,10 @@
   {datatype, {duration, s}}
 ]}.
 
+{mapping, "coap.cacertfile", "emqx_coap.cacertfile", [
+  {datatype, string}
+]}.
+
 {mapping, "coap.keyfile", "emqx_coap.keyfile", [
   {datatype, string}
 ]}.

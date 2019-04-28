@@ -55,4 +55,4 @@ unregister_config() ->
 %% Internal Functions
 %%--------------------------------------------------------------------
 keys() ->
-    ["coap.port", "coap.keepalive", "coap.enable_stats", "coap.certfile", "coap.keyfile"].
+    ["coap.port", "coap.keepalive", "coap.enable_stats", "coap.cacertfile", "coap.certfile", "coap.keyfile"].
