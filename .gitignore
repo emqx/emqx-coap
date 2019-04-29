@@ -18,3 +18,4 @@ intergration_test/case*.txt
 _build/
 rebar.lock
 rebar3.crashdump
+erlang.mk
