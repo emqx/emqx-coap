@@ -22,4 +22,4 @@ xref:
 
 distclean:
 	@rm -rf _build
-	@rm -f data/app.*.config data/vm.*.args
+	@rm -f data/app.*.config data/vm.*.args rebar.lock
