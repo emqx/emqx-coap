@@ -30,4 +30,18 @@
   {datatype, flag}
 ]}.
 
+{mapping, "coap.dtls.ciphers", "emqx_coap.ciphers", [
+  {datatype, string}
+]}.
+
+{translation, "emqx_coap.ciphers", fun(Conf) ->
+    SplitFun = fun(undefined) -> undefined; (S) -> string:tokens(S, ",") end,
+    DTLSCiphers = cuttlefish:conf_get("coap.dtls.ciphers", Conf, undefined),
+    case DTLSCiphers of
+        undefined ->
+            cuttlefish:invalid("coap.dtls.ciphers is absent");
+        _ ->
+            SplitFun(DTLSCiphers)
+    end
+end}.
 
