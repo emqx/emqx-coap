@@ -5,6 +5,10 @@
   {datatype, integer}
 ]}.
 
+{mapping, "coap.dtls_port", "emqx_coap.dtls_port", [
+  {datatype, integer}
+]}.
+
 {mapping, "coap.keepalive", "emqx_coap.keepalive", [
   {default, "120s"},
   {datatype, {duration, s}}
