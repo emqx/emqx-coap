@@ -29,4 +29,3 @@ NewDeps = [EMQX_DEP | DEPS],
 CONFIG2 = lists:keystore(deps, 1, CONFIG1, {deps, NewDeps}),
 
 CONFIG2.
-
