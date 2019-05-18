@@ -66,11 +66,11 @@
 -define(PROTO_UNSUBSCRIBE(X, Y),       proto_unsubscribe(X, Y)).
 -define(PROTO_PUBLISH(A1, A2, P),      proto_publish(A1, A2, P)).
 -define(PROTO_DELIVER_ACK(Msg, State), proto_deliver_ack(Msg, State)).
--define(PROTO_SHUTDOWN(A, B),          emqx_protocol:shutdown(A, B)).
+-define(PROTO_SHUTDOWN(A, B),          emqx_protocol:terminate(A, B)).
 -define(PROTO_SEND(Msg, PckId, B),     emqx_protocol:send(emqx_packet:from_message(PckId, Msg), B)).
 -define(PROTO_GET_CLIENT_ID(A),        emqx_protocol:client_id(A)).
 -define(PROTO_STATS(A),                emqx_protocol:stats(A)).
--define(SET_CLIENT_STATS(A,B),         emqx_stats:set_client_stats(A,B)).
+-define(SET_CLIENT_STATS(A,B),         emqx_stats:setstat(A,B)).
 -endif.
 
 -define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
