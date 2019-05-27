@@ -37,7 +37,7 @@ start(Port) ->
     end,
     coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
-    emqx_coap_ps_topics:start().
+    emqx_coap_ps_topics:start_link().
 
 stop() ->
     application:stop(gen_coap).
