@@ -20,3 +20,4 @@ rebar.lock
 rebar3.crashdump
 *.swp
 erlang.mk
+.rebar3/

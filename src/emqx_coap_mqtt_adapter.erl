@@ -244,7 +244,8 @@ code_change(_OldVsn, State, _Extra) ->
 proto_init(ClientId, Username, Password, Channel, EnableStats) ->
     SendFun = fun(_Packet, _Option) -> {ok, <<>>} end,
     PktOpts = [{max_clientid_len, 96}, {max_packet_size, 512}, {client_enable_stats, EnableStats}],
-    Proto = emqx_protocol:init(#{peername => Channel, peercert => nossl, sendfun => SendFun}, PktOpts),
+    %% FIXME: sockname is not passed by gen_coap
+    Proto = emqx_protocol:init(#{peername => Channel, sockname => {{0,0,0,0}, 5683}, peercert => nossl, sendfun => SendFun}, PktOpts),
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
                                    password = Password,

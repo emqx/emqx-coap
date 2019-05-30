@@ -1,11 +1,9 @@
 
-emqx-coap
-=========
+# emqx-coap
 
 emqx-coap is a CoAP Gateway for EMQ X Broker. It translates CoAP messages into MQTT messages and make it possible to communiate between CoAP clients and MQTT clients.
 
-Client Usage Example
---------------------
+### Client Usage Example
 libcoap is an excellent coap library which has a simple client tool. It is recommended to use libcoap as a coap client.
 
 To compile libcoap, do following steps:
@@ -49,12 +47,14 @@ v:1 t:CON c:GET i:31ae {} [ ]
 ```
 The output message is not well formatted which hide "1234567" at the head of the 2nd line.
 
-Configure emqx-coap
--------------------
+### Configure
+
+#### Common
 
 File: etc/emqx_coap.conf
 
-```
+```properties
+
 ## The UDP port that CoAP is listening on.
 ##
 ## Value: Port
@@ -73,33 +73,67 @@ coap.keepalive = 120s
 ## Value: on | off
 coap.enable_stats = off
 
+```
+
+#### DTLS
+
+emqx_coap enable one-way authentication by default.
+
+If you want to disable it, comment these lines.
+
+File: etc/emqx_coap.conf
+
+```properties
+
+## The DTLS port that CoAP is listening on.
+##
+## Value: Port
+coap.dtls.port = 5684
+
 ## Private key file for DTLS
 ##
 ## Value: File
-coap.keyfile = {{ platform_etc_dir }}/certs/key.pem
+coap.dtls.keyfile = {{ platform_etc_dir }}/certs/key.pem
 
 ## Server certificate for DTLS.
 ##
 ## Value: File
-coap.certfile = {{ platform_etc_dir }}/certs/cert.pem
+coap.dtls.certfile = {{ platform_etc_dir }}/certs/cert.pem
 
 ```
 
-- coap.port
-  + UDP port for CoAP.
-- coap.keepalive
-  + Interval for keepalive, in seconds.
-- coap.enable_stats
-  + To control whether write statistics data into ETS table for dashbord to read.
-- coap.certfile
-  + server certificate for DTLS
-- coap.keyfile
-  + private key for DTLS
+##### Enable two-way autentication
 
-Load emq-coap
--------------
+For two-way autentication:
+
+```properties
+
+## A server only does x509-path validation in mode verify_peer,
+## as it then sends a certificate request to the client (this
+## message is not sent if the verify option is verify_none).
+## You can then also want to specify option fail_if_no_peer_cert.
+## More information at: http://erlang.org/doc/man/ssl.html
+##
+## Value: verify_peer | verify_none
+## coap.dtls.verify = verify_peer
+
+## PEM-encoded CA certificates for DTLS
+##
+## Value: File
+## coap.dtls.cacertfile = {{ platform_etc_dir }}/certs/cacert.pem
+
+## Used together with {verify, verify_peer} by an SSL server. If set to true,
+## the server fails if the client does not have a certificate to send, that is,
+## sends an empty certificate.
+##
+## Value: true | false
+## coap.dtls.fail_if_no_peer_cert = false
 
 ```
+
+### Load emq-coap
+
+```bash
 ./bin/emqx_ctl plugins load emqx_coap
 ```
 
