@@ -131,7 +131,7 @@ For two-way autentication:
 
 ```
 
-### Load emq-coap
+### Load emqx-coap
 
 ```bash
 ./bin/emqx_ctl plugins load emqx_coap
@@ -212,9 +212,10 @@ Device should issue a get command periodically, serve as a ping to keep mqtt ses
 - if {username} and {password} are not correct, an uauthorized error will be returned.
 - coap client should do keepalive work periodically to keep mqtt session online, especially those devices in a NAT network.
 
+
 CoAP Client NOTES
 -----------------
-emq-coap gateway does not accept POST and DELETE requests.
+emqx-coap gateway does not accept POST and DELETE requests.
 
 Topics in URI should be percent-encoded, but corresponding uri_path option has percent-encoding converted. Please refer to RFC 7252 section 6.4, "Decomposing URIs into Options":
 
@@ -222,29 +223,15 @@ Topics in URI should be percent-encoded, but corresponding uri_path option has p
 
 That implies coap client is responsible to convert any percert-encoding into true character while assembling coap packet.
 
-DTLS
-----
-emq-coap support DTLS to secure UDP data.
-
-Please config coap.certfile and coap.keyfile in emqx_coap.conf. If certfile or keyfile are invalid, DTLS will be turned off and you could read a error message in system log.
 
 ClientId, Username, Password and Topic
 --------------------------------------
-ClientId/username/password/topic in the coap URI are the concepts in mqtt. That is to say, emq-coap is trying to fit coap message into mqtt system, by borrowing the client/username/password/topic from mqtt.
+ClientId/username/password/topic in the coap URI are the concepts in mqtt. That is to say, emqx-coap is trying to fit coap message into mqtt system, by borrowing the client/username/password/topic from mqtt.
 
 The Auth/ACL/Hook features in mqtt also applies on coap stuff. For example:
 - If username/password is not authorized, coap client will get an uauthorized error.
-- If username or clientid is not allowed to published specific topic, coap message will be dropped in fact, although coap client will get an acknoledgement from emq-coap.
+- If username or clientid is not allowed to published specific topic, coap message will be dropped in fact, although coap client will get an acknoledgement from emqx-coap.
 - If a coap message is published, a 'message.publish' hook is able to capture this message as well.
-
-well-known locations
---------------------
-Discovery always return "</mqtt>,</ps>"
-
-For example
-```
-libcoap/examples/coap-client -m get "coap://127.0.0.1/.well-known/core"
-```
 
 well-known locations
 --------------------
