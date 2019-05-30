@@ -31,7 +31,6 @@ start(_Type, _Args) ->
     {ok,Sup}.
 
 stop(_State) ->
-    ok = coap_server:del_handler([<<"mqtt">>], emqx_coap_resource),
-    ok = coap_server:del_handler([<<"ps">>], emqx_coap_ps_resource),
-    _ = coap_server:stop_udp(coap, application:get_env(?APP, port, 5683)),
+    _ = coap_server:stop_udp(coap_udp_socket),
+    _ = coap_server:stop_dtls(coap_dtls_socket),
     emqx_coap_config:unregister().

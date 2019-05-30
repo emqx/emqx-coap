@@ -2,3 +2,10 @@
 2. Remove the mqtt adaptor
 3. Remove the emqx_coap_ps_topics.erl
 
+
+### Problems
+
+1. The coap-client of libcoap does not support Fragment DTLS handshake frame
+    * So, the connection will be established failed, if the 'Server Hello' frame is too big
+    * Why is the 'Server Hello' too big when enable the 'coap.dtls.cacertfile' option?
+2.

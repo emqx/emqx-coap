@@ -5,43 +5,70 @@
   {datatype, integer}
 ]}.
 
-{mapping, "coap.dtls_port", "emqx_coap.dtls_port", [
-  {datatype, integer}
-]}.
-
 {mapping, "coap.keepalive", "emqx_coap.keepalive", [
   {default, "120s"},
   {datatype, {duration, s}}
-]}.
-
-{mapping, "coap.cacertfile", "emqx_coap.cacertfile", [
-  {datatype, string}
-]}.
-
-{mapping, "coap.keyfile", "emqx_coap.keyfile", [
-  {datatype, string}
-]}.
-
-{mapping, "coap.certfile", "emqx_coap.certfile", [
-  {datatype, string}
 ]}.
 
 {mapping, "coap.enable_stats", "emqx_coap.enable_stats", [
   {datatype, flag}
 ]}.
 
-{mapping, "coap.dtls.ciphers", "emqx_coap.ciphers", [
+{mapping, "coap.dtls.port", "emqx_coap.dtls_opts", [
+  {datatype, integer}
+]}.
+
+{mapping, "coap.dtls.keyfile", "emqx_coap.dtls_opts", [
   {datatype, string}
 ]}.
 
-{translation, "emqx_coap.ciphers", fun(Conf) ->
-    SplitFun = fun(undefined) -> undefined; (S) -> string:tokens(S, ",") end,
-    DTLSCiphers = cuttlefish:conf_get("coap.dtls.ciphers", Conf, undefined),
-    case DTLSCiphers of
-        undefined ->
-            cuttlefish:invalid("coap.dtls.ciphers is absent");
-        _ ->
-            SplitFun(DTLSCiphers)
+{mapping, "coap.dtls.certfile", "emqx_coap.dtls_opts", [
+  {datatype, string}
+]}.
+
+{mapping, "coap.dtls.verify", "emqx_coap.dtls_opts", [
+  {default, verify_none},
+  {datatype, {enum, [verify_none, verify_peer]}}
+]}.
+
+{mapping, "coap.dtls.cacertfile", "emqx_coap.dtls_opts", [
+  {datatype, string}
+]}.
+
+{mapping, "coap.dtls.fail_if_no_peer_cert", "emqx_coap.dtls_opts", [
+  {datatype, {enum, [true, false]}}
+]}.
+
+{mapping, "coap.dtls.ciphers", "emqx_coap.dtls_opts", [
+  {datatype, string}
+]}.
+
+{translation, "emqx_coap.dtls_opts", fun(Conf) ->
+    case cuttlefish:conf_get("coap.dtls.port", Conf, undefined) of
+        undefined -> [];
+        Port ->
+            Filter  = fun(Opts) -> [{K, V} || {K, V} <- Opts, V =/= undefined] end,
+
+            %% Ciphers
+            SplitFun = fun(undefined) -> undefined; (S) -> string:tokens(S, ",") end,
+            Ciphers =
+                case cuttlefish:conf_get("coap.dtls.ciphers", Conf, undefined) of
+                    undefined ->
+                        lists:foldl(
+                            fun(TlsVer, Ciphers) ->
+                                Ciphers ++ ssl:cipher_suites(all, TlsVer)
+                            end, [], ['dtlsv1', 'dtlsv1.2']);
+                    C ->
+                        SplitFun(C)
+                end,
+
+            Filter([{port, Port},
+                    {verify, cuttlefish:conf_get("coap.dtls.verify", Conf, undefined)},
+                    {keyfile, cuttlefish:conf_get("coap.dtls.keyfile", Conf, undefined)},
+                    {certfile, cuttlefish:conf_get("coap.dtls.certfile", Conf, undefined)},
+                    {cacertfile, cuttlefish:conf_get("coap.dtls.cacertfile", Conf, undefined)},
+                    {fail_if_no_peer_cert, cuttlefish:conf_get("coap.dtls.fail_if_no_peer_cert", Conf, undefined)},
+                    {ciphers, Ciphers}])
     end
 end}.
 

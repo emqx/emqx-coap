@@ -23,20 +23,11 @@
 start() ->
     {ok, _} = application:ensure_all_started(gen_coap),
     {ok, _} = coap_server:start_udp(coap_udp_socket, application:get_env(?APP, port, 5683)),
-    case application:get_env(?APP, dtls_port) of
-        {ok, DtlsPort} ->
-            Ciphers = application:get_env(?APP, ciphers, []),
-            CACertFile = application:get_env(?APP, cacertfile, undefined),
-            CertFile = application:get_env(?APP, certfile, undefined),
-            KeyFile = application:get_env(?APP, keyfile, undefined),
-            Opts = [{certfile, CertFile},
-                    {keyfile, KeyFile},
-                    {cacertfile, CACertFile},
-                    {verify, verify_peer},
-                    {ciphers, Ciphers}],
-            {ok, _} = coap_server:start_dtls(coap_dtls_socket, DtlsPort, Opts);
-        _ ->
-            ok
+    case application:get_env(?APP, dtls_opts, []) of
+        [] -> ok;
+        DtlsOpts ->
+            DtlsPort = proplists:get_value(port, DtlsOpts),
+            {ok, _} = coap_server:start_dtls(coap_dtls_socket, DtlsPort, DtlsOpts)
     end,
     ok = coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     ok = coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined).
