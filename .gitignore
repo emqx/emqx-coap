@@ -18,4 +18,6 @@ intergration_test/case*.txt
 _build/
 rebar.lock
 rebar3.crashdump
+*.swp
 erlang.mk
+.rebar3/

@@ -26,13 +26,12 @@
 
 start(_Type, _Args) ->
     {ok, Sup} = emqx_coap_sup:start_link(),
-    ok = coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
-    ok = coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
-    _ = coap_server:start_udp(coap, application:get_env(?APP, port, 5683)),
+    emqx_coap_server:start(),
     emqx_coap_config:register(),
     {ok,Sup}.
 
 stop(_State) ->
-    _ = coap_server:stop_udp(coap),
+    _ = coap_server:stop_udp(coap_udp_socket),
+    _ = coap_server:stop_dtls(coap_dtls_socket),
     emqx_coap_config:unregister().
 
