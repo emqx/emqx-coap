@@ -55,4 +55,14 @@ unregister_config() ->
 %% Internal Functions
 %%--------------------------------------------------------------------
 keys() ->
-    ["coap.port", "coap.keepalive", "coap.enable_stats", "coap.certfile", "coap.keyfile"].
+    [ "coap.port"
+    , "coap.keepalive"
+    , "coap.enable_stats"
+    , "coap.dtls.port"
+    , "coap.dtls.verify"
+    , "coap.dtls.keyfile"
+    , "coap.dtls.certfile"
+    , "coap.dtls.cacertfile"
+    , "coap.dtls.fail_if_no_peer_cert"
+    ].
+

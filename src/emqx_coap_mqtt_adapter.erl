@@ -177,17 +177,12 @@ handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
     {noreply, State, hibernate}.
 
-handle_info({deliver, {publish, PacketId, Msg = #message{topic = TopicName, payload = Payload}} },
-             State = #state{proto = Proto, sub_topics = Subscribers}) ->
-    %% handle PUBLISH from broker
-    ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p, Subscribers=~p", [TopicName, Payload, Subscribers]),
-    NewProto = ?PROTO_DELIVER_ACK(Msg, Proto),
-    deliver_to_coap(TopicName, Payload, Subscribers),
-    {ok, NewerProto} = ?PROTO_SEND(Msg, PacketId, NewProto),
-    {noreply, State#state{proto = NewerProto}};
 
-handle_info({suback, _MsgId, [_GrantedQos]}, State) ->
-    {noreply, State, hibernate};
+handle_info({deliver, SubAck}, State) when is_tuple(SubAck) ->
+    handle_info({deliver, [SubAck]}, State);
+handle_info({deliver, Pubs}, State = #state{proto = Proto, sub_topics = Subscribers}) when is_list(Pubs) ->
+    NewerProto = deliver(Pubs, Proto, Subscribers),
+    {noreply, State#state{proto = NewerProto}};
 
 handle_info({subscribe,_}, State) ->
     {noreply, State};
@@ -247,9 +242,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 proto_init(ClientId, Username, Password, Channel, EnableStats) ->
-    SendFun = fun(_Packet, _Option) -> ok end,
+    SendFun = fun(_Packet, _Option) -> {ok, <<>>} end,
     PktOpts = [{max_clientid_len, 96}, {max_packet_size, 512}, {client_enable_stats, EnableStats}],
-    Proto = emqx_protocol:init(#{peername => Channel, peercert => nossl, sendfun => SendFun}, PktOpts),
+    %% FIXME: sockname is not passed by gen_coap
+    Proto = emqx_protocol:init(#{peername => Channel, sockname => {{0,0,0,0}, 5683}, peercert => nossl, sendfun => SendFun}, PktOpts),
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
                                    password = Password,
@@ -301,6 +297,25 @@ proto_deliver_ack(#message{qos = ?QOS_2, headers = #{packet_id := PacketId}}, Pr
             end;
         Other -> error(Other)
     end.
+
+deliver([], Proto, _) -> Proto;
+deliver([Pub | More], Proto, Subscribers) ->
+    {ok, Proto1} = deliver(Pub, Proto, Subscribers),
+    deliver(More, Proto1, Subscribers);
+
+deliver({publish, PacketId, Msg = #message{topic = TopicName, payload = Payload}}, Proto, Subscribers) ->
+    %% handle PUBLISH from broker
+    ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p", [TopicName, Payload]),
+    NewProto = ?PROTO_DELIVER_ACK(Msg, Proto),
+    deliver_to_coap(TopicName, Payload, Subscribers),
+    {ok, NewerProto} = ?PROTO_SEND(Msg, PacketId, NewProto),
+    {ok, NewerProto};
+
+deliver({unsuback, _MsgId, [_ReasonCode]}, Proto, _Subscribers) ->
+    {ok, Proto};
+
+deliver({suback, _MsgId, [_GrantedQos]}, Proto, _Subscribers) ->
+    {ok, Proto}.
 
 deliver_to_coap(_TopicName, _Payload, []) ->
     ok;
