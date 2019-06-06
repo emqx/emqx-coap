@@ -17,27 +17,20 @@
 -include("emqx_coap.hrl").
 
 -export([ start/0
-        , start/1
         , stop/0
         ]).
 
 start() ->
-    start(application:get_env(?APP, port, 5683)).
-
-start(Port) ->
     {ok, _} = application:ensure_all_started(gen_coap),
-    _ = coap_server:start_udp(coap_udp_socket, Port),
-    CertFile = application:get_env(?APP, certfile, ""),
-    KeyFile = application:get_env(?APP, keyfile, ""),
-    case (filelib:is_regular(CertFile) andalso filelib:is_regular(KeyFile)) of
-        true ->
-            coap_server:start_dtls(coap_dtls_socket, [{certfile, CertFile}, {keyfile, KeyFile}]);
-        false ->
-            emqx_logger:error("Certfile ~p or keyfile ~p are not valid, turn off coap DTLS", [CertFile, KeyFile])
+    {ok, _} = coap_server:start_udp(coap_udp_socket, application:get_env(?APP, port, 5683)),
+    case application:get_env(?APP, dtls_opts, []) of
+        [] -> ok;
+        DtlsOpts ->
+            DtlsPort = proplists:get_value(port, DtlsOpts),
+            {ok, _} = coap_server:start_dtls(coap_dtls_socket, DtlsPort, DtlsOpts)
     end,
-    coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
-    coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
-    emqx_coap_ps_topics:start().
+    ok = coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
+    ok = coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined).
 
 stop() ->
     application:stop(gen_coap).
