@@ -70,7 +70,7 @@
 -define(PROTO_SEND(Msg, PckId, B),     emqx_protocol:send(emqx_packet:from_message(PckId, Msg), B)).
 -define(PROTO_GET_CLIENT_ID(A),        emqx_protocol:client_id(A)).
 -define(PROTO_STATS(A),                emqx_protocol:stats(A)).
--define(SET_CLIENT_STATS(A,B),         emqx_stats:set_client_stats(A,B)).
+-define(SET_CLIENT_STATS(A,B),         emqx_stats:setstat(A,B)).
 -endif.
 
 -define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
