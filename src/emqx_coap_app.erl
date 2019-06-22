@@ -16,7 +16,7 @@
 
 -behaviour(application).
 
--emqx_plugin(?MODULE).
+-emqx_plugin(protocol).
 
 -include("emqx_coap.hrl").
 
