@@ -283,20 +283,10 @@ proto_publish(Topic, Payload, Proto) ->
 
 proto_deliver_ack(#message{qos = ?QOS_0}, Proto) ->
     Proto;
-proto_deliver_ack(#message{qos = ?QOS_1, headers = #{packet_id := PacketId}}, Proto) ->
-    case emqx_protocol:received(?PUBACK_PACKET(PacketId), Proto) of
-        {ok, NewProto} -> NewProto;
-        Other          -> error(Other)
-    end;
-proto_deliver_ack(#message{qos = ?QOS_2, headers = #{packet_id := PacketId}}, Proto) ->
-    case emqx_protocol:received(?PUBREC_PACKET(PacketId), Proto) of
-        {ok, NewProto} ->
-            case emqx_protocol:received(?PUBCOMP_PACKET(PacketId), NewProto) of
-                {ok, CurrentProto} -> CurrentProto;
-                Another            -> error(Another)
-            end;
-        Other -> error(Other)
-    end.
+proto_deliver_ack(#message{qos = ?QOS_1}, _Proto) ->
+    error(not_support_qos1);
+proto_deliver_ack(#message{qos = ?QOS_2}, _Proto) ->
+    error(not_support_qos2).
 
 deliver([], Proto, _) -> Proto;
 deliver([Pub | More], Proto, Subscribers) ->
