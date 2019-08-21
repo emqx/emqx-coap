@@ -54,26 +54,24 @@
 -define(PROTO_SUBSCRIBE(X, Y),         test_mqtt_broker:subscribe(X)).
 -define(PROTO_UNSUBSCRIBE(X, Y),       test_mqtt_broker:unsubscribe(X)).
 -define(PROTO_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
--define(PROTO_DELIVER_ACK(A1, A2),     A2).
+-define(PROTO_DELIVER_ACK(A1, A2, P),  P).
+-define(PROTO_TIMEOUT(A1, A2, P),      P).
+-define(PROTO_ENSURE_TIMER(A1, P),     ok).
 -define(PROTO_SHUTDOWN(A, B),          ok).
--define(PROTO_SEND(A, PckId, B),       {ok, B}).
--define(PROTO_GET_CLIENT_ID(A),        test_mqtt_broker:clientid(A)).
--define(PROTO_STATS(A),                test_mqtt_broker:stats(A)).
--define(SET_CLIENT_STATS(A,B),         test_mqtt_broker:set_client_stats(A,B)).
 -else.
 -define(PROTO_INIT(A, B, C, D, E),     proto_init(A, B, C, D, E)).
 -define(PROTO_SUBSCRIBE(X, Y),         proto_subscribe(X, Y)).
 -define(PROTO_UNSUBSCRIBE(X, Y),       proto_unsubscribe(X, Y)).
 -define(PROTO_PUBLISH(A1, A2, P),      proto_publish(A1, A2, P)).
--define(PROTO_DELIVER_ACK(Msg, State), proto_deliver_ack(Msg, State)).
--define(PROTO_SHUTDOWN(A, B),          emqx_protocol:terminate(A, B)).
--define(PROTO_SEND(Msg, PckId, B),     emqx_protocol:send(emqx_packet:from_message(PckId, Msg), B)).
--define(PROTO_GET_CLIENT_ID(A),        emqx_protocol:client_id(A)).
--define(PROTO_STATS(A),                emqx_protocol:stats(A)).
--define(SET_CLIENT_STATS(A,B),         emqx_stats:setstat(A,B)).
+-define(PROTO_DELIVER_ACK(A1, A2, P),  proto_deliver_ack(A1, A2, P)).
+-define(PROTO_TIMEOUT(A1, A2, P),      proto_timeout(A1, A2, P)).
+-define(PROTO_ENSURE_TIMER(A1, P),     emqx_channel:ensure_timer(A1, P)).
+-define(PROTO_SHUTDOWN(A, B),          emqx_channel:terminate(A, B)).
 -endif.
 
+-define(CHAN_STATS, [recv_pkt, recv_msg, send_pkt, send_msg]).
 -define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -139,14 +137,14 @@ handle_call({publish, Topic, Payload}, _From, State=#state{proto = Proto}) ->
     {reply, ok, State#state{proto = NewProto}};
 
 
-handle_call(info, From, State = #state{proto = ProtoState, peer = Channel}) ->
+handle_call(info, _From, State = #state{proto = ProtoState, peer = Channel}) ->
     ProtoInfo  = emqx_protocol:info(ProtoState),
     ClientInfo = [{peername, Channel}],
-    {reply, Stats, _, _} = handle_call(stats, From, State),
+    Stats = stats(State),
     {reply, lists:append([ClientInfo, ProtoInfo, Stats]), State};
 
-handle_call(stats, _From, State = #state{proto = ProtoState}) ->
-    {reply, lists:append([emqx_misc:proc_stats(), ?PROTO_STATS(ProtoState), socket_stats(undefined, ?SOCK_STATS)]), State, hibernate};
+handle_call(stats, _From, State) ->
+    {reply, stats(State), State, hibernate};
 
 handle_call(kick, _From, State) ->
     {stop, {shutdown, kick}, ok, State};
@@ -168,25 +166,26 @@ handle_call(Request, _From, State) ->
 
 handle_cast(keepalive, State=#state{keepalive = undefined}) ->
     {noreply, State, hibernate};
-handle_cast(keepalive, State=#state{keepalive = Keepalive}) ->
-    emit_stats(State),
+handle_cast(keepalive, State=#state{keepalive = Keepalive, proto = Proto}) ->
+    NProto = ?PROTO_ENSURE_TIMER(emit_stats, Proto),
     NewKeepalive = emqx_coap_timer:kick_timer(Keepalive),
-    {noreply, State#state{keepalive = NewKeepalive}, hibernate};
+    {noreply, State#state{keepalive = NewKeepalive, proto = NProto}, hibernate};
 
 handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
     {noreply, State, hibernate}.
 
+handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{proto = Proto, sub_topics = Subscribers}) ->
+    case emqx_channel:handle_out(Deliver, Proto) of
+        {ok, Proto1} -> {noreply, State#state{proto = Proto1}};
+        {ok, PubPkts, Proto1} ->
+            Proto2 = deliver(PubPkts, Proto1, Subscribers),
+            {noreply, State#state{proto = Proto2}};
+        {stop, Reason, Proto1} ->
+            {stop, Reason, State#state{proto = Proto1}}
+    end;
 
-handle_info({deliver, SubAck}, State) when is_tuple(SubAck) ->
-    handle_info({deliver, [SubAck]}, State);
-handle_info({deliver, Pubs}, State = #state{proto = Proto, sub_topics = Subscribers}) when is_list(Pubs) ->
-    NewerProto = deliver(Pubs, Proto, Subscribers),
-    {noreply, State#state{proto = NewerProto}};
-
-handle_info({subscribe,_}, State) ->
-    {noreply, State};
-
+%% TODO:
 handle_info({keepalive, start, Interval}, StateData) ->
     ?LOG(debug, "Keepalive at the interval of ~p", [Interval]),
     KeepAlive = emqx_coap_timer:start_timer(Interval, {keepalive, check}),
@@ -203,9 +202,8 @@ handle_info({keepalive, check}, StateData = #state{keepalive = KeepAlive}) ->
             {stop, normal, StateData}
     end;
 
-
-handle_info(emit_stats, State) ->
-    {noreply, emit_stats(State), hibernate};
+handle_info({timeout, TRef, emit_stats}, State) ->
+    {noreply, handle_timeout(TRef, {emit_stats, stats(State)}, State)};
 
 handle_info(timeout, State) ->
     {stop, {shutdown, idle_timeout}, State};
@@ -242,59 +240,75 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 proto_init(ClientId, Username, Password, Channel, EnableStats) ->
-    SendFun = fun(_Packet, _Option) -> {ok, <<>>} end,
-    PktOpts = [{max_clientid_len, 96}, {max_packet_size, 512}, {client_enable_stats, EnableStats}],
-    %% FIXME: sockname is not passed by gen_coap
-    Proto = emqx_protocol:init(#{peername => Channel, sockname => {{0,0,0,0}, 5683}, peercert => nossl, sendfun => SendFun}, PktOpts),
+    Options = [{zone, external}],
+    ConnInfo = #{peername => Channel,
+                 sockname => {{0,0,0,0}, 5683},
+                 peercert => nossl},
+    Proto = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
                                    password = Password,
                                    clean_start = true,
                                    keepalive = application:get_env(?APP, keepalive, ?DEFAULT_KEEPALIVE_DURATION)},
-    case emqx_protocol:received(?CONNECT_PACKET(ConnPkt), Proto) of
-        {ok, Proto1}  -> {ok, Proto1};
-        {stop, {shutdown, auth_failure}, _Proto2} -> {stop, auth_failure};
-        Other         -> error(Other)
+    case emqx_channel:received(?CONNECT_PACKET(ConnPkt), Proto) of
+        {ok, _Connack, Proto1} -> {ok, Proto1};
+        {stop, {shutdown, auth_failure}, _Connack, _Proto1} -> {stop, auth_failure};
+        Other -> error(Other)
     end.
 
 proto_subscribe(Topic, Proto) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    case emqx_protocol:received(?SUBSCRIBE_PACKET(1, [{Topic, #{rh => 0, rap => 0, nl => 0, qos => ?QOS_1}}]), Proto) of
-        {ok, Proto1}  -> Proto1;
-        Other         -> error(Other)
+    case emqx_channel:handle_in(?SUBSCRIBE_PACKET(1, [{Topic, #{rh => 0, rap => 0, nl => 0, qos => ?QOS_1}}]), Proto) of
+        {ok, _Suback, Proto1} -> Proto1;
+        {stop, {shutdown, Reason}, _Discon, _Proto1} -> error({shutdown, Reason});
+        Other -> error(Other)
     end.
 
 proto_unsubscribe(Topic, Proto) ->
     ?LOG(debug, "unsubscribe Topic=~p", [Topic]),
-    case emqx_protocol:received(?UNSUBSCRIBE_PACKET(1, [Topic]), Proto) of
-        {ok, Proto1}  -> Proto1;
-        Other         -> error(Other)
+    case emqx_channel:handle_in(?UNSUBSCRIBE_PACKET(1, [Topic]), Proto) of
+        {ok, _Unsuback, Proto1} -> Proto1;
+        {stop, {shutdown, Reason}, _Discon, _Proto1} -> error({shutdown, Reason});
+        Other -> error(Other)
     end.
 
 proto_publish(Topic, Payload, Proto) ->
     ?LOG(debug, "publish Topic=~p, Payload=~p", [Topic, Payload]),
-    Publish = #mqtt_packet{header   = #mqtt_packet_header{type = ?PUBLISH, qos = ?QOS_0},
-        variable = #mqtt_packet_publish{topic_name = Topic, packet_id = 1},
-        payload  = Payload},
-    case emqx_protocol:received(Publish, Proto) of
+    Publish = #mqtt_packet{
+                 header = #mqtt_packet_header{type = ?PUBLISH, qos = ?QOS_0},
+                 variable = #mqtt_packet_publish{topic_name = Topic, packet_id = 1},
+                 payload  = Payload
+                },
+    case emqx_channel:handle_in(Publish, Proto) of
         {ok, Proto1}  -> Proto1;
+        {stop, {shutdown, Reason}, _Discon, _Proto1} -> error({shutdown, Reason});
         Other         -> error(Other)
     end.
 
-proto_deliver_ack(#message{qos = ?QOS_0}, Proto) ->
+proto_deliver_ack(?QOS_0, _, Proto) ->
     Proto;
-proto_deliver_ack(#message{qos = ?QOS_1, headers = #{packet_id := PacketId}}, Proto) ->
-    case emqx_protocol:received(?PUBACK_PACKET(PacketId), Proto) of
-        {ok, NewProto} -> NewProto;
-        Other          -> error(Other)
+proto_deliver_ack(?QOS_1, PktId, Proto) ->
+    case emqx_channel:handle_in(?PUBACK_PACKET(PktId), Proto) of
+        {ok, NProto} -> NProto;
+        Other -> error(Other)
     end;
-proto_deliver_ack(#message{qos = ?QOS_2, headers = #{packet_id := PacketId}}, Proto) ->
-    case emqx_protocol:received(?PUBREC_PACKET(PacketId), Proto) of
-        {ok, NewProto} ->
-            case emqx_protocol:received(?PUBCOMP_PACKET(PacketId), NewProto) of
-                {ok, CurrentProto} -> CurrentProto;
-                Another            -> error(Another)
+
+proto_deliver_ack(?QOS_2, PktId, Proto) ->
+    case emqx_channel:handle_in(?PUBREC_PACKET(PktId), Proto) of
+        {ok, Proto1} ->
+            case emqx_channel:handle_in(?PUBCOMP_PACKET(PktId), Proto1) of
+                {ok, Proto2} -> Proto2;
+                Another -> error(Another)
             end;
+        Other -> error(Other)
+    end.
+
+proto_timeout(TRef, Msg, Proto) ->
+    case emqx_channel:timeout(TRef, Msg, Proto) of
+        {ok, NProto} -> NProto;
+        {ok, _Pkts, NProto} ->
+            %% TODO: pkts???
+            NProto;
         Other -> error(Other)
     end.
 
@@ -303,18 +317,16 @@ deliver([Pub | More], Proto, Subscribers) ->
     {ok, Proto1} = deliver(Pub, Proto, Subscribers),
     deliver(More, Proto1, Subscribers);
 
-deliver({publish, PacketId, Msg = #message{topic = TopicName, payload = Payload}}, Proto, Subscribers) ->
-    %% handle PUBLISH from broker
-    ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p", [TopicName, Payload]),
-    NewProto = ?PROTO_DELIVER_ACK(Msg, Proto),
-    deliver_to_coap(TopicName, Payload, Subscribers),
-    {ok, NewerProto} = ?PROTO_SEND(Msg, PacketId, NewProto),
-    {ok, NewerProto};
+deliver(?PUBLISH_PACKET(Qos, Topic, PktId, Payload), Proto, Subscribers) ->
+    %% handle PUBLISH packet from broker
+    ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p", [Topic, Payload]),
 
-deliver({unsuback, _MsgId, [_ReasonCode]}, Proto, _Subscribers) ->
-    {ok, Proto};
+    NProto = ?PROTO_DELIVER_ACK(Qos, PktId, Proto),
+    deliver_to_coap(Topic, Payload, Subscribers),
+    {ok, NProto};
 
-deliver({suback, _MsgId, [_GrantedQos]}, Proto, _Subscribers) ->
+deliver(Pkt, Proto, _Subscribers) ->
+    ?LOG(warning, "unknown packet type to deliver, pkt=~p,", [Pkt]),
     {ok, Proto}.
 
 deliver_to_coap(_TopicName, _Payload, []) ->
@@ -328,6 +340,23 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
     Matched andalso (CoapPid ! {dispatch, TopicName, Payload}),
     deliver_to_coap(TopicName, Payload, T).
 
+%%--------------------------------------------------------------------
+%% Misc funcs
+%%--------------------------------------------------------------------
+
+set_enable_stats(EnableStats, PState) ->
+    PState#{enable_stats => EnableStats}.
+
+handle_timeout(TRef, Msg = {emit_stats, _}, #state{proto = Proto}) ->
+    ?PROTO_TIMEOUT(TRef, Msg, Proto),
+    ok.
+
+stats(#state{proto = ChanState}) ->
+    SockStats = socket_stats(undefined, ?SOCK_STATS),
+    ChanStats = [{Name, emqx_pd:get_counter(Name)} || Name <- ?CHAN_STATS],
+    SessStats = emqx_session:stats(emqx_channel:info(session, ChanState)),
+    lists:append([SockStats, ChanStats, SessStats, emqx_misc:proc_stats()]).
+
 %% here we keep the original socket_stats implementation, which will be put into use when we can get socket fd in emqx_coap_mqtt_adapter process
 %socket_stats(Sock, Stats) when is_port(Sock), is_list(Stats)->
     %inet:getstat(Sock, Stats).
@@ -339,14 +368,4 @@ socket_stats(undefined, Stats) when is_list(Stats)->
     ?LOG(debug, "The List=~p", [List]),
     List.
 
-emit_stats(StateData=#state{proto=ProtoState}) ->
-    emit_stats(?PROTO_GET_CLIENT_ID(ProtoState), StateData).
 
-emit_stats(_ClientId, State = #state{enable_stats = false}) ->
-    %%?LOG(debug, "The enable_stats is false, skip emit_state~n", []),
-    State;
-
-emit_stats(ClientId, State) ->
-    {reply, Stats, _, _} = handle_call(stats, undefined, State),
-    ?SET_CLIENT_STATS(ClientId, Stats),
-    State.
