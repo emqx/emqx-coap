@@ -19,8 +19,10 @@
 -include("emqx_coap.hrl").
 
 -include_lib("emqx/include/emqx.hrl").
-
 -include_lib("emqx/include/emqx_mqtt.hrl").
+-include_lib("emqx/include/logger.hrl").
+
+-logger_header("[CoAP-Adpter]").
 
 %% API.
 -export([ subscribe/2
@@ -42,31 +44,30 @@
         , code_change/3
         ]).
 
--record(state, {proto, peer, keepalive, sub_topics = [], enable_stats}).
+-record(state, {chann, peer, keepalive, sub_topics = [], enable_stats}).
 
 -define(DEFAULT_KEEPALIVE_DURATION,  60 * 2).
 
--define(LOG(Level, Format, Args),
-        emqx_logger:Level("CoAP-MQTT: " ++ Format, Args)).
-
 -ifdef(TEST).
--define(PROTO_INIT(A, B, C, D, E),     test_mqtt_broker:start(A, B, C, D, E)).
--define(PROTO_SUBSCRIBE(X, Y),         test_mqtt_broker:subscribe(X)).
--define(PROTO_UNSUBSCRIBE(X, Y),       test_mqtt_broker:unsubscribe(X)).
--define(PROTO_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
--define(PROTO_DELIVER_ACK(A1, A2, P),  P).
--define(PROTO_TIMEOUT(A1, A2, P),      P).
--define(PROTO_ENSURE_TIMER(A1, P),     ok).
--define(PROTO_SHUTDOWN(A, B),          ok).
+-define(CHANN_INIT(A, B, C, D, E),     test_mqtt_broker:start(A, B, C, D, E)).
+-define(CHANN_SUBSCRIBE(X, Y),         test_mqtt_broker:subscribe(X)).
+-define(CHANN_UNSUBSCRIBE(X, Y),       test_mqtt_broker:unsubscribe(X)).
+-define(CHANN_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
+-define(CHANN_HANDLEOUT(A1, P),        test_mqtt_broker:msg_to_pkt(A1, P)).
+-define(CHANN_DELIVER_ACK(A1, A2, P),  P).
+-define(CHANN_TIMEOUT(A1, A2, P),      P).
+-define(CHANN_ENSURE_TIMER(A1, P),     ok).
+-define(CHANN_SHUTDOWN(A, B),          ok).
 -else.
--define(PROTO_INIT(A, B, C, D, E),     proto_init(A, B, C, D, E)).
--define(PROTO_SUBSCRIBE(X, Y),         proto_subscribe(X, Y)).
--define(PROTO_UNSUBSCRIBE(X, Y),       proto_unsubscribe(X, Y)).
--define(PROTO_PUBLISH(A1, A2, P),      proto_publish(A1, A2, P)).
--define(PROTO_DELIVER_ACK(A1, A2, P),  proto_deliver_ack(A1, A2, P)).
--define(PROTO_TIMEOUT(A1, A2, P),      proto_timeout(A1, A2, P)).
--define(PROTO_ENSURE_TIMER(A1, P),     emqx_channel:ensure_timer(A1, P)).
--define(PROTO_SHUTDOWN(A, B),          emqx_channel:terminate(A, B)).
+-define(CHANN_INIT(A, B, C, D, E),     chann_init(A, B, C, D, E)).
+-define(CHANN_SUBSCRIBE(X, Y),         chann_subscribe(X, Y)).
+-define(CHANN_UNSUBSCRIBE(X, Y),       chann_unsubscribe(X, Y)).
+-define(CHANN_PUBLISH(A1, A2, P),      chann_publish(A1, A2, P)).
+-define(CHANN_HANDLEOUT(A1, P),        emqx_channel:handle_out(A1, P)).
+-define(CHANN_DELIVER_ACK(A1, A2, P),  chann_deliver_ack(A1, A2, P)).
+-define(CHANN_TIMEOUT(A1, A2, P),      chann_timeout(A1, A2, P)).
+-define(CHANN_ENSURE_TIMER(A1, P),     emqx_channel:ensure_timer(A1, P)).
+-define(CHANN_SHUTDOWN(A, B),          emqx_channel:terminate(A, B)).
 -endif.
 
 -define(CHAN_STATS, [recv_pkt, recv_msg, send_pkt, send_msg]).
@@ -115,33 +116,32 @@ keepalive(Pid)->
 init({ClientId, Username, Password, Channel}) ->
     ?LOG(debug, "try to start adapter ClientId=~p, Username=~p, Password=~p, Channel=~p", [ClientId, Username, Password, Channel]),
     EnableStats = application:get_env(?APP, enable_stats, false),
-    case ?PROTO_INIT(ClientId, Username, Password, Channel, EnableStats) of
-        {ok, Proto}           -> {ok, #state{proto = Proto, peer = Channel, enable_stats = EnableStats}};
+    case ?CHANN_INIT(ClientId, Username, Password, Channel, EnableStats) of
+        {ok, CState}          -> {ok, #state{chann = CState, peer = Channel, enable_stats = EnableStats}};
         {stop, auth_failure}  -> {stop, auth_failure};
         Other                 -> {stop, Other}
     end.
 
-handle_call({subscribe, Topic, CoapPid}, _From, State=#state{proto = Proto, sub_topics = TopicList}) ->
+handle_call({subscribe, Topic, CoapPid}, _From, State=#state{chann = CState, sub_topics = TopicList}) ->
     NewTopics = proplists:delete(Topic, TopicList),
     IsWild = emqx_topic:wildcard(Topic),
-    NewProto = ?PROTO_SUBSCRIBE(Topic, Proto),
-    {reply, ok, State#state{proto = NewProto, sub_topics = [{Topic, {IsWild, CoapPid}}|NewTopics]}, hibernate};
+    NCState = ?CHANN_SUBSCRIBE(Topic, CState),
+    {reply, ok, State#state{chann = NCState, sub_topics = [{Topic, {IsWild, CoapPid}}|NewTopics]}, hibernate};
 
-handle_call({unsubscribe, Topic, _CoapPid}, _From, State=#state{proto = Proto, sub_topics = TopicList}) ->
+handle_call({unsubscribe, Topic, _CoapPid}, _From, State=#state{chann = CState, sub_topics = TopicList}) ->
     NewTopics = proplists:delete(Topic, TopicList),
-    NewProto = ?PROTO_UNSUBSCRIBE(Topic, Proto),
-    {reply, ok, State#state{proto = NewProto, sub_topics = NewTopics}, hibernate};
+    NCState = ?CHANN_UNSUBSCRIBE(Topic, CState),
+    {reply, ok, State#state{chann = NCState, sub_topics = NewTopics}, hibernate};
 
-handle_call({publish, Topic, Payload}, _From, State=#state{proto = Proto}) ->
-    NewProto = ?PROTO_PUBLISH(Topic, Payload, Proto),
-    {reply, ok, State#state{proto = NewProto}};
+handle_call({publish, Topic, Payload}, _From, State=#state{chann = CState}) ->
+    NCState = ?CHANN_PUBLISH(Topic, Payload, CState),
+    {reply, ok, State#state{chann = NCState}};
 
-
-handle_call(info, _From, State = #state{proto = ProtoState, peer = Channel}) ->
-    ProtoInfo  = emqx_protocol:info(ProtoState),
+handle_call(info, _From, State = #state{chann = CStateState, peer = Channel}) ->
+    CStateInfo  = emqx_channel:info(CStateState),
     ClientInfo = [{peername, Channel}],
     Stats = stats(State),
-    {reply, lists:append([ClientInfo, ProtoInfo, Stats]), State};
+    {reply, lists:append([ClientInfo, CStateInfo, Stats]), State};
 
 handle_call(stats, _From, State) ->
     {reply, stats(State), State, hibernate};
@@ -157,8 +157,8 @@ handle_call(get_rate_limit, _From, State) ->
     ?LOG(error, "get_rate_limit is not support", []),
     {reply, ok, State};
 
-handle_call(session, _From, State = #state{proto = ProtoState}) ->
-    {reply, emqx_protocol:session(ProtoState), State};
+handle_call(session, _From, State = #state{chann = CStateState}) ->
+    {reply, emqx_channel:info(session, CStateState), State};
 
 handle_call(Request, _From, State) ->
     ?LOG(error, "adapter unexpected call ~p", [Request]),
@@ -166,26 +166,26 @@ handle_call(Request, _From, State) ->
 
 handle_cast(keepalive, State=#state{keepalive = undefined}) ->
     {noreply, State, hibernate};
-handle_cast(keepalive, State=#state{keepalive = Keepalive, proto = Proto}) ->
-    NProto = ?PROTO_ENSURE_TIMER(emit_stats, Proto),
+
+handle_cast(keepalive, State=#state{keepalive = Keepalive, chann = CState}) ->
+    NCState = ?CHANN_ENSURE_TIMER(emit_stats, CState),
     NewKeepalive = emqx_coap_timer:kick_timer(Keepalive),
-    {noreply, State#state{keepalive = NewKeepalive, proto = NProto}, hibernate};
+    {noreply, State#state{keepalive = NewKeepalive, chann = NCState}, hibernate};
 
 handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
     {noreply, State, hibernate}.
 
-handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{proto = Proto, sub_topics = Subscribers}) ->
-    case emqx_channel:handle_out(Deliver, Proto) of
-        {ok, Proto1} -> {noreply, State#state{proto = Proto1}};
-        {ok, PubPkts, Proto1} ->
-            Proto2 = deliver(PubPkts, Proto1, Subscribers),
-            {noreply, State#state{proto = Proto2}};
-        {stop, Reason, Proto1} ->
-            {stop, Reason, State#state{proto = Proto1}}
+handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{chann = CState, sub_topics = Subscribers}) ->
+    case ?CHANN_HANDLEOUT(Deliver, CState) of
+        {ok, CState1} -> {noreply, State#state{chann = CState1}};
+        {ok, PubPkts, CState1} ->
+            CState2 = deliver(PubPkts, CState1, Subscribers),
+            {noreply, State#state{chann = CState2}};
+        {stop, Reason, CState1} ->
+            {stop, Reason, State#state{chann = CState1}}
     end;
 
-%% TODO:
 handle_info({keepalive, start, Interval}, StateData) ->
     ?LOG(debug, "Keepalive at the interval of ~p", [Interval]),
     KeepAlive = emqx_coap_timer:start_timer(Interval, {keepalive, check}),
@@ -203,7 +203,7 @@ handle_info({keepalive, check}, StateData = #state{keepalive = KeepAlive}) ->
     end;
 
 handle_info({timeout, TRef, emit_stats}, State) ->
-    {noreply, handle_timeout(TRef, {emit_stats, stats(State)}, State)};
+    {noreply, ok, handle_timeout(TRef, {emit_stats, stats(State)}, State)};
 
 handle_info(timeout, State) ->
     {stop, {shutdown, idle_timeout}, State};
@@ -219,115 +219,100 @@ handle_info(Info, State) ->
     ?LOG(error, "adapter unexpected info ~p", [Info]),
     {noreply, State, hibernate}.
 
-terminate(Reason, #state{proto = Proto, keepalive = KeepAlive}) ->
+terminate(Reason, #state{chann = CState, keepalive = KeepAlive}) ->
     emqx_coap_timer:cancel_timer(KeepAlive),
-    case {Proto, Reason} of
+    case {CState, Reason} of
         {undefined, _} ->
             ok;
         {_, {shutdown, Error}} ->
-            ?PROTO_SHUTDOWN(Error, Proto);
+            ?CHANN_SHUTDOWN(Error, CState);
         {_, Reason} ->
-            ?PROTO_SHUTDOWN(Reason, Proto)
+            ?CHANN_SHUTDOWN(Reason, CState)
     end.
-
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-
 %%--------------------------------------------------------------------
-%% Internal Functions
-%%--------------------------------------------------------------------
+%% CStatecol
 
-proto_init(ClientId, Username, Password, Channel, EnableStats) ->
+chann_init(ClientId, Username, Password, Channel, EnableStats) ->
     Options = [{zone, external}],
     ConnInfo = #{peername => Channel,
                  sockname => {{0,0,0,0}, 5683},
                  peercert => nossl},
-    Proto = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
+    CState = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
     ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
                                    username = Username,
                                    password = Password,
                                    clean_start = true,
                                    keepalive = application:get_env(?APP, keepalive, ?DEFAULT_KEEPALIVE_DURATION)},
-    case emqx_channel:received(?CONNECT_PACKET(ConnPkt), Proto) of
-        {ok, _Connack, Proto1} -> {ok, Proto1};
-        {stop, {shutdown, auth_failure}, _Connack, _Proto1} -> {stop, auth_failure};
+    case emqx_channel:handle_in(?CONNECT_PACKET(ConnPkt), CState) of
+        {ok, _Connack, CState1} -> {ok, CState1};
+        {stop, {shutdown, auth_failure}, _Connack, _CState1} -> {stop, auth_failure};
         Other -> error(Other)
     end.
 
-proto_subscribe(Topic, Proto) ->
+chann_subscribe(Topic, CState) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    case emqx_channel:handle_in(?SUBSCRIBE_PACKET(1, [{Topic, #{rh => 0, rap => 0, nl => 0, qos => ?QOS_1}}]), Proto) of
-        {ok, _Suback, Proto1} -> Proto1;
-        {stop, {shutdown, Reason}, _Discon, _Proto1} -> error({shutdown, Reason});
-        Other -> error(Other)
-    end.
+    SubOpts = #{rh => 0, rap => 0, nl => 0, qos => ?QOS_1},
+    throw_if(
+      emqx_channel:handle_in(?SUBSCRIBE_PACKET(1, [{Topic, SubOpts}]), CState)).
 
-proto_unsubscribe(Topic, Proto) ->
+chann_unsubscribe(Topic, CState) ->
     ?LOG(debug, "unsubscribe Topic=~p", [Topic]),
-    case emqx_channel:handle_in(?UNSUBSCRIBE_PACKET(1, [Topic]), Proto) of
-        {ok, _Unsuback, Proto1} -> Proto1;
-        {stop, {shutdown, Reason}, _Discon, _Proto1} -> error({shutdown, Reason});
-        Other -> error(Other)
-    end.
+    throw_if(
+      emqx_channel:handle_in(?UNSUBSCRIBE_PACKET(1, [Topic]), CState)).
 
-proto_publish(Topic, Payload, Proto) ->
+chann_publish(Topic, Payload, CState) ->
     ?LOG(debug, "publish Topic=~p, Payload=~p", [Topic, Payload]),
     Publish = #mqtt_packet{
                  header = #mqtt_packet_header{type = ?PUBLISH, qos = ?QOS_0},
                  variable = #mqtt_packet_publish{topic_name = Topic, packet_id = 1},
                  payload  = Payload
                 },
-    case emqx_channel:handle_in(Publish, Proto) of
-        {ok, Proto1}  -> Proto1;
-        {stop, {shutdown, Reason}, _Discon, _Proto1} -> error({shutdown, Reason});
-        Other         -> error(Other)
-    end.
+    throw_if(
+      emqx_channel:handle_in(Publish, CState)).
 
-proto_deliver_ack(?QOS_0, _, Proto) ->
-    Proto;
-proto_deliver_ack(?QOS_1, PktId, Proto) ->
-    case emqx_channel:handle_in(?PUBACK_PACKET(PktId), Proto) of
-        {ok, NProto} -> NProto;
-        Other -> error(Other)
-    end;
+chann_deliver_ack(?QOS_0, _, CState) ->
+    CState;
+chann_deliver_ack(?QOS_1, PktId, CState) ->
+    throw_if(
+      emqx_channel:handle_in(?PUBACK_PACKET(PktId), CState));
 
-proto_deliver_ack(?QOS_2, PktId, Proto) ->
-    case emqx_channel:handle_in(?PUBREC_PACKET(PktId), Proto) of
-        {ok, Proto1} ->
-            case emqx_channel:handle_in(?PUBCOMP_PACKET(PktId), Proto1) of
-                {ok, Proto2} -> Proto2;
-                Another -> error(Another)
-            end;
-        Other -> error(Other)
-    end.
+chann_deliver_ack(?QOS_2, PktId, CState) ->
+    CState1 = throw_if(emqx_channel:handle_in(?PUBREC_PACKET(PktId), CState)),
+    throw_if(
+      emqx_channel:handle_in(?PUBCOMP_PACKET(PktId), CState1)).
 
-proto_timeout(TRef, Msg, Proto) ->
-    case emqx_channel:timeout(TRef, Msg, Proto) of
-        {ok, NProto} -> NProto;
-        {ok, _Pkts, NProto} ->
+chann_timeout(TRef, Msg, CState) ->
+    case emqx_channel:timeout(TRef, Msg, CState) of
+        {ok, NCState} -> NCState;
+        {ok, _Pkts, NCState} ->
             %% TODO: pkts???
-            NProto;
+            NCState;
         Other -> error(Other)
     end.
 
-deliver([], Proto, _) -> Proto;
-deliver([Pub | More], Proto, Subscribers) ->
-    {ok, Proto1} = deliver(Pub, Proto, Subscribers),
-    deliver(More, Proto1, Subscribers);
+%%--------------------------------------------------------------------
+%% Deliver
 
-deliver(?PUBLISH_PACKET(Qos, Topic, PktId, Payload), Proto, Subscribers) ->
+deliver([], CState, _) -> CState;
+deliver([Pub | More], CState, Subscribers) ->
+    {ok, CState1} = deliver(Pub, CState, Subscribers),
+    deliver(More, CState1, Subscribers);
+
+deliver(?PUBLISH_PACKET(Qos, Topic, PktId, Payload), CState, Subscribers) ->
     %% handle PUBLISH packet from broker
     ?LOG(debug, "deliver message from broker Topic=~p, Payload=~p", [Topic, Payload]),
 
-    NProto = ?PROTO_DELIVER_ACK(Qos, PktId, Proto),
+    NCState = ?CHANN_DELIVER_ACK(Qos, PktId, CState),
     deliver_to_coap(Topic, Payload, Subscribers),
-    {ok, NProto};
+    {ok, NCState};
 
-deliver(Pkt, Proto, _Subscribers) ->
+deliver(Pkt, CState, _Subscribers) ->
     ?LOG(warning, "unknown packet type to deliver, pkt=~p,", [Pkt]),
-    {ok, Proto}.
+    {ok, CState}.
 
 deliver_to_coap(_TopicName, _Payload, []) ->
     ok;
@@ -342,16 +327,24 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
 
 %%--------------------------------------------------------------------
 %% Misc funcs
-%%--------------------------------------------------------------------
 
 set_enable_stats(EnableStats, PState) ->
     PState#{enable_stats => EnableStats}.
 
-handle_timeout(TRef, Msg = {emit_stats, _}, #state{proto = Proto}) ->
-    ?PROTO_TIMEOUT(TRef, Msg, Proto),
-    ok.
+handle_timeout(TRef, Msg = {emit_stats, _}, State = #state{chann = CState}) ->
+    State#state{chann = ?CHANN_TIMEOUT(TRef, Msg, CState)}.
 
-stats(#state{proto = ChanState}) ->
+throw_if({ok, CState}) ->
+    CState;
+throw_if({ok, _Pkts, CState}) ->
+    CState;
+throw_if({stop, Reason, _DisconnPkt, _CState}) ->
+    error(Reason);
+throw_if(OtherRet) ->
+    error(OtherRet).
+
+
+stats(#state{chann = ChanState}) ->
     SockStats = socket_stats(undefined, ?SOCK_STATS),
     ChanStats = [{Name, emqx_pd:get_counter(Name)} || Name <- ?CHAN_STATS],
     SessStats = emqx_session:stats(emqx_channel:info(session, ChanState)),
@@ -367,5 +360,4 @@ socket_stats(undefined, Stats) when is_list(Stats)->
     List = lists:zip(Stats, FakeSockOpt),
     ?LOG(debug, "The List=~p", [List]),
     List.
-
 

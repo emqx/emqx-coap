@@ -70,6 +70,9 @@ unsubscribe(Topic) ->
 dispatch(Topic, Msg, MatchedTopicFilter) ->
     gen_server:call(?MODULE, {dispatch, {Topic, Msg, MatchedTopicFilter}}).
 
+msg_to_pkt({deliver, _Topic,{publish, PktId, #message{topic = Topic, qos = Qos, payload = Payload}}}, CState) ->
+    {ok, [?PUBLISH_PACKET(Qos, Topic, PktId, Payload)], CState}.
+
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -115,7 +118,7 @@ handle_call({dispatch, {Topic, Msg, MatchedTopicFilter}}, _From, State=#state{su
     ?LOGT("test broker dispatch topic=~p, Msg=~p, Pid=~p, MatchedTopicFilter=~p, SubList=~p~n", [Topic, Msg, Pid, MatchedTopicFilter, SubList]),
     (Pid == undefined) andalso ?LOGT("!!!!! this topic ~p has never been subscribed, please specify a valid topic filter", [MatchedTopicFilter]),
     ?assertNotEqual(undefined, Pid),
-    Pid ! {deliver, {publish, 1, #message{topic = Topic, payload = Msg}}},
+    Pid ! {deliver, Topic, {publish, 1, #message{topic = Topic, payload = Msg}}},
     {reply, ok, State};
 
 handle_call(stop, _From, State) ->

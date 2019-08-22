@@ -63,6 +63,11 @@ case01(_Config) ->
     test_mqtt_broker:stop().
 
 case02(_Config) ->
+    dbg:tracer(),dbg:p(all,call),
+    dbg:tpl(emqx_coap_mqtt_adapter, throw_if,x),
+    dbg:tp(emqx_channel, handle_in, x),
+    dbg:tp(emqx_channel, handle_out,x),
+
     test_mqtt_broker:start_link(),
     {ok, _Started} = application:ensure_all_started(emqx_coap),
     timer:sleep(100),
