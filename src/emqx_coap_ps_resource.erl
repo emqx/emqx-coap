@@ -20,6 +20,9 @@
 -include_lib("gen_coap/include/coap.hrl").
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/emqx_mqtt.hrl").
+-include_lib("emqx/include/logger.hrl").
+
+-logger_header("[CoAP-PS-RES]").
 
 -export([ coap_discover/2
         , coap_get/5
@@ -37,9 +40,6 @@
 -endif.
 
 -define(PS_PREFIX, [<<"ps">>]).
-
--define(LOG(Level, Format, Args),
-    logger:Level("CoAP-PS-RES: " ++ Format, Args)).
 
 %%--------------------------------------------------------------------
 %% Resource Callbacks

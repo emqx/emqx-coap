@@ -19,39 +19,34 @@
 
 -include_lib("gen_coap/include/coap.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("emqx/include/emqx.hrl").
 
--define(PORT, 5683).
--define(LOGT(Format, Args), ct:print("TEST_SUITE: " ++ Format, Args)).
+-define(LOGT(Format, Args), ct:pal(Format, Args)).
 
-suite() -> [{timetrap, {seconds, 120}}].
-
-all() ->
-    [{group, coap_ps}].
-
-groups() ->
-    [{coap_ps, [sequence],
-     [case01_create, case02_create, case03_create, case04_create,
-      case01_publish_post, case02_publish_post, case03_publish_post, case04_publish_post,
-      case01_publish_put, case02_publish_put, case03_publish_put, case04_publish_put,
-      case01_subscribe, case02_subscribe, case03_subscribe, case04_subscribe,
-      case01_read, case02_read, case03_read, case04_read, case05_read,
-      case01_delete, case02_delete]}].
+all() -> emqx_ct:all(?MODULE).
 
 init_per_suite(Config) ->
-    application:set_env(emqx_coap, enable_stats, true),
+    emqx_ct_helpers:start_apps([emqx_coap], fun set_sepecial_cfg/1),
     Config.
+
+set_sepecial_cfg(emqx_coap) ->
+    application:set_env(emqx_coap, enable_stats, true);
+set_sepecial_cfg(_) ->
+    ok.
 
 end_per_suite(Config) ->
     Config.
 
-case01_create(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+%%--------------------------------------------------------------------
+%% Test Cases
+%%--------------------------------------------------------------------
+
+t_update_max_age(_Config) ->
     TopicInPayload = <<"topic1">>,
     Payload = <<"<topic1>;ct=42">>,
     Payload1 = <<"<topic1>;ct=50">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
+    URI2 = "coap://127.0.0.1/ps/topic1"++"?c=client1&u=tom&p=secret",
     Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
@@ -71,17 +66,15 @@ case01_create(_Config) ->
     ?assertEqual(70, MaxAge2),
     ?assertEqual(<<"50">>, CT2),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI2).
 
-case02_create(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_create_subtopic(_Config) ->
     TopicInPayload = <<"topic1">>,
-    TopicInPayloadStr = binary_to_list(TopicInPayload),
+    TopicInPayloadStr = "topic1",
     Payload = <<"<topic1>;ct=42">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
+    RealURI = "coap://127.0.0.1/ps/topic1"++"?c=client1&u=tom&p=secret",
+
     Reply = er_coap_client:request(post, URI, #coap_content{format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
@@ -94,12 +87,12 @@ case02_create(_Config) ->
     timer:sleep(50),
 
     %% post to create the a sub topic
-    Payload1 = <<"<subtopic>;ct=42">>,
-    TopicInPayload1 = <<"subtopic">>,
-    TopicInPayloadStr1 = binary_to_list(TopicInPayload1),
-    URI1 = "coap://127.0.0.1/ps/"++TopicInPayloadStr++"?c=client1&u=tom&p=secret",
-    FullTopic = list_to_binary(TopicInPayloadStr++"/"++TopicInPayloadStr1),
-    Reply1 = er_coap_client:request(post, URI1, #coap_content{format = <<"application/link-format">>, payload = Payload1}),
+    SubPayload = <<"<subtopic>;ct=42">>,
+    SubTopicInPayloadStr = "subtopic",
+    SubURI = "coap://127.0.0.1/ps/"++TopicInPayloadStr++"?c=client1&u=tom&p=secret",
+    SubRealURI = "coap://127.0.0.1/ps/"++TopicInPayloadStr++"/"++SubTopicInPayloadStr++"?c=client1&u=tom&p=secret",
+    FullTopic = list_to_binary(TopicInPayloadStr++"/"++SubTopicInPayloadStr),
+    Reply1 = er_coap_client:request(post, SubURI, #coap_content{format = <<"application/link-format">>, payload = SubPayload}),
     ?LOGT("Reply =~p", [Reply1]),
     {ok,created, #coap_content{location_path = LocPath1}} = Reply1,
     ?assertEqual([<<"/ps/topic1/subtopic">>] ,LocPath1),
@@ -107,39 +100,31 @@ case02_create(_Config) ->
     ?assertEqual(60, MaxAge2),
     ?assertEqual(<<"42">>, CT2),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, SubRealURI),
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, RealURI).
 
-case03_create(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_over_max_age(_Config) ->
     TopicInPayload = <<"topic1">>,
     Payload = <<"<topic1>;ct=42">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
-    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload}),
+    Reply = er_coap_client:request(post, URI, #coap_content{max_age = 2, format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
     ?assertEqual([<<"/ps/topic1">>] ,LocPath),
     TopicInfo = [{TopicInPayload, MaxAge1, CT1, _ResPayload, _TimeStamp}] = emqx_coap_ps_topics:lookup_topic_info(TopicInPayload),
     ?LOGT("lookup topic info=~p", [TopicInfo]),
-    ?assertEqual(5, MaxAge1),
+    ?assertEqual(2, MaxAge1),
     ?assertEqual(<<"42">>, CT1),
 
-    timer:sleep(6000),
-    ?assertEqual(true, emqx_coap_ps_topics:is_topic_timeout(TopicInPayload)),
+    timer:sleep(3000),
+    ?assertEqual(true, emqx_coap_ps_topics:is_topic_timeout(TopicInPayload)).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case04_create(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_refreash_max_age(_Config) ->
     TopicInPayload = <<"topic1">>,
     Payload = <<"<topic1>;ct=42">>,
     Payload1 = <<"<topic1>;ct=50">>,
     URI = "coap://127.0.0.1/ps/"++"?c=client1&u=tom&p=secret",
+    RealURI = "coap://127.0.0.1/ps/topic1"++"?c=client1&u=tom&p=secret",
     Reply = er_coap_client:request(post, URI, #coap_content{max_age = 5, format = <<"application/link-format">>, payload = Payload}),
     ?LOGT("Reply =~p", [Reply]),
     {ok,created, #coap_content{location_path = LocPath}} = Reply,
@@ -164,12 +149,9 @@ case04_create(_Config) ->
     timer:sleep(3000),
     ?assertEqual(false, emqx_coap_ps_topics:is_topic_timeout(TopicInPayload)),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, RealURI).
 
-case01_publish_post(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
+t_case01_publish_post(_Config) ->
     timer:sleep(100),
     MainTopic = <<"maintopic">>,
     TopicInPayload = <<"topic1">>,
@@ -191,27 +173,26 @@ case01_publish_post(_Config) ->
     FullTopicStr = http_uri:encode(binary_to_list(FullTopic)),
     URI2 = "coap://127.0.0.1/ps/"++FullTopicStr++"?c=client1&u=tom&p=secret",
     PubPayload = <<"PUBLISH">>,
+
+    %% Sub topic first
+    emqx:subscribe(FullTopic),
+
     Reply2 = er_coap_client:request(post, URI2, #coap_content{format = <<"application/octet-stream">>, payload = PubPayload}),
     ?LOGT("Reply =~p", [Reply2]),
     {ok,changed, _} = Reply2,
     TopicInfo = [{FullTopic, MaxAge, CT2, PubPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(FullTopic),
     ?LOGT("the topic info =~p", [TopicInfo]),
 
-    timer:sleep(50),
-    PubMsg = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg]),
-    ?assertEqual({FullTopic, PubPayload}, PubMsg),
+    assert_recv(FullTopic, PubPayload),
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI2).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case02_publish_post(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case02_publish_post(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"payload">>,
+
+    %% Sub topic first
+    emqx:subscribe(Topic),
 
     %% post to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
@@ -223,9 +204,7 @@ case02_publish_post(_Config) ->
     ?assertEqual(60, MaxAge),
     ?assertEqual(<<"42">>, CT),
 
-    PubMsg = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg]),
-    ?assertEqual({Topic, Payload}, PubMsg),
+    assert_recv(Topic, Payload),
 
     %% post to publish a new message to the same topic "topic1" with different payload
     NewPayload = <<"newpayload">>,
@@ -234,21 +213,16 @@ case02_publish_post(_Config) ->
     {ok,changed, _} = Reply1,
     [{Topic, MaxAge, CT, NewPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(Topic),
 
-    timer:sleep(50),
-    PubMsg1 = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg1]),
-    ?assertEqual({Topic, NewPayload}, PubMsg1),
+    assert_recv(Topic, NewPayload),
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case03_publish_post(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case03_publish_post(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"payload">>,
+
+    %% Sub topic first
+    emqx:subscribe(Topic),
 
     %% post to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
@@ -260,10 +234,7 @@ case03_publish_post(_Config) ->
     ?assertEqual(60, MaxAge),
     ?assertEqual(<<"42">>, CT),
 
-    timer:sleep(50),
-    PubMsg = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg]),
-    ?assertEqual({Topic, Payload}, PubMsg),
+    assert_recv(Topic, Payload),
 
     %% post to publish a new message to the same topic "topic1", but the ct is not same as created
     NewPayload = <<"newpayload">>,
@@ -271,13 +242,9 @@ case03_publish_post(_Config) ->
     ?LOGT("Reply =~p", [Reply1]),
     ?assertEqual({error,bad_request}, Reply1),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case04_publish_post(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case04_publish_post(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"payload">>,
@@ -296,13 +263,9 @@ case04_publish_post(_Config) ->
     timer:sleep(6000),
     ?assertEqual(true, emqx_coap_ps_topics:is_topic_timeout(Topic)),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case01_publish_put(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case01_publish_put(_Config) ->
     MainTopic = <<"maintopic">>,
     TopicInPayload = <<"topic1">>,
     Payload = <<"<topic1>;ct=42">>,
@@ -323,26 +286,26 @@ case01_publish_put(_Config) ->
     FullTopicStr = http_uri:encode(binary_to_list(FullTopic)),
     URI2 = "coap://127.0.0.1/ps/"++FullTopicStr++"?c=client1&u=tom&p=secret",
     PubPayload = <<"PUBLISH">>,
+
+    %% Sub topic first
+    emqx:subscribe(FullTopic),
+
     Reply2 = er_coap_client:request(put, URI2, #coap_content{format = <<"application/octet-stream">>, payload = PubPayload}),
     ?LOGT("Reply =~p", [Reply2]),
     {ok,changed, _} = Reply2,
     [{FullTopic, MaxAge, CT2, PubPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(FullTopic),
 
-    timer:sleep(50),
-    PubMsg = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg]),
-    ?assertEqual({FullTopic, PubPayload}, PubMsg),
+    assert_recv(FullTopic, PubPayload),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI2).
 
-case02_publish_put(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case02_publish_put(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"payload">>,
+
+    %% Sub topic first
+    emqx:subscribe(Topic),
 
     %% put to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
@@ -354,9 +317,7 @@ case02_publish_put(_Config) ->
     ?assertEqual(60, MaxAge),
     ?assertEqual(<<"42">>, CT),
 
-    PubMsg = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg]),
-    ?assertEqual({Topic, Payload}, PubMsg),
+    assert_recv(Topic, Payload),
 
     %% put to publish a new message to the same topic "topic1" with different payload
     NewPayload = <<"newpayload">>,
@@ -365,21 +326,17 @@ case02_publish_put(_Config) ->
     {ok,changed, _} = Reply1,
     [{Topic, MaxAge, CT, NewPayload, _TimeStamp1}] = emqx_coap_ps_topics:lookup_topic_info(Topic),
 
-    timer:sleep(50),
-    PubMsg1 = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg1]),
-    ?assertEqual({Topic, NewPayload}, PubMsg1),
+    assert_recv(Topic, NewPayload),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case03_publish_put(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case03_publish_put(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"payload">>,
+
+    %% Sub topic first
+    emqx:subscribe(Topic),
 
     %% put to publish a new topic "topic1", and the topic is created
     URI = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
@@ -391,10 +348,7 @@ case03_publish_put(_Config) ->
     ?assertEqual(60, MaxAge),
     ?assertEqual(<<"42">>, CT),
 
-    timer:sleep(50),
-    PubMsg = test_mqtt_broker:get_published_msg(),
-    ?LOGT("PubMsg=~p~n", [PubMsg]),
-    ?assertEqual({Topic, Payload}, PubMsg),
+    assert_recv(Topic, Payload),
 
     %% put to publish a new message to the same topic "topic1", but the ct is not same as created
     NewPayload = <<"newpayload">>,
@@ -402,13 +356,9 @@ case03_publish_put(_Config) ->
     ?LOGT("Reply =~p", [Reply1]),
     ?assertEqual({error,bad_request}, Reply1),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case04_publish_put(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case04_publish_put(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"payload">>,
@@ -430,12 +380,9 @@ case04_publish_put(_Config) ->
     timer:sleep(6000),
     ?assertEqual(true, emqx_coap_ps_topics:is_topic_timeout(Topic)),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case01_subscribe(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
+t_case01_subscribe(_Config) ->
     Topic = <<"topic1">>,
     Payload1 = <<"<topic1>;ct=42">>,
     timer:sleep(100),
@@ -456,13 +403,13 @@ case01_subscribe(_Config) ->
     {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri1),
     ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
 
-    timer:sleep(100),
-    SubTopics = test_mqtt_broker:get_subscrbied_topics(),
-    ?_assertEqual([Topic], SubTopics),
+    [SubPid] = emqx:subscribers(Topic),
+    ?assert(is_pid(SubPid)),
 
-    %% Broker publish to the topic
+    %% Publish a message
     Payload = <<"123">>,
-    test_mqtt_broker:dispatch(Topic, Payload, Topic),
+    emqx:publish(emqx_message:make(Topic, Payload)),
+
     Notif = receive_notification(),
     ?LOGT("observer get Notif=~p", [Notif]),
     {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
@@ -476,17 +423,9 @@ case01_subscribe(_Config) ->
     ?_assertEqual(true, MaxAgeLeft<60),
 
     er_coap_observer:stop(Pid),
-    timer:sleep(100),
-    SubTopics2 = test_mqtt_broker:get_subscrbied_topics(),
-    ?_assertEqual([], SubTopics2),
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, Uri1).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case02_subscribe(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case02_subscribe(_Config) ->
     Topic = <<"a/b">>,
     TopicStr = binary_to_list(Topic),
     PercentEncodedTopic = http_uri:encode(TopicStr),
@@ -508,11 +447,11 @@ case02_subscribe(_Config) ->
 
     %% Subscribe to the timeout topic "a/b", still successfully，got {ok, nocontent} Method
     Uri = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
-    Reply1 = {ok, _Pid, _N, nocontent, _} = er_coap_observer:observe(Uri),
+    Reply1 = {ok, Pid, _N, nocontent, _} = er_coap_observer:observe(Uri),
     ?LOGT("Subscribe Reply=~p", [Reply1]), 
 
-    SubTopics = test_mqtt_broker:get_subscrbied_topics(),
-    ?_assertEqual([Topic], SubTopics),
+    [SubPid] = emqx:subscribers(Topic),
+    ?assert(is_pid(SubPid)),
 
     %% put to publish to topic "a/b"
     Reply2 = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
@@ -522,20 +461,17 @@ case02_subscribe(_Config) ->
     ?assertEqual(<<"42">>, CT),
     ?assertEqual(false, TimeStamp =:= timeout),
 
-    %% Broker dispatch the publish
-    test_mqtt_broker:dispatch(Topic, Payload, Topic),
+    %% Publish a message
+    emqx:publish(emqx_message:make(Topic, Payload)),
+
     Notif = receive_notification(),
     ?LOGT("observer get Notif=~p", [Notif]),
     {coap_notify, _, _, {ok,content}, #coap_content{payload = Payload}} = Notif,
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    er_coap_observer:stop(Pid),
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case03_subscribe(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
-
+t_case03_subscribe(_Config) ->
     %% Subscribe to the unexisted topic "a/b", got not_found
     Topic = <<"a/b">>,
     TopicStr = binary_to_list(Topic),
@@ -543,17 +479,9 @@ case03_subscribe(_Config) ->
     Uri = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
     {error, not_found} = er_coap_observer:observe(Uri),
 
-    SubTopic = test_mqtt_broker:get_subscrbied_topics(),
-    ?_assertEqual([], SubTopic),
+    [] = emqx:subscribers(Topic).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case04_subscribe(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
-
+t_case04_subscribe(_Config) ->
     %% Subscribe to the wildcad topic "+/b", got bad_request
     Topic = <<"+/b">>,
     TopicStr = binary_to_list(Topic),
@@ -561,15 +489,9 @@ case04_subscribe(_Config) ->
     Uri = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
     {error, bad_request} = er_coap_observer:observe(Uri),
 
-    SubTopic = test_mqtt_broker:get_subscrbied_topics(),
-    ?_assertEqual([], SubTopic),
+    [] = emqx:subscribers(Topic).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case01_read(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
+t_case01_read(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"PubPayload">>,
@@ -592,12 +514,9 @@ case01_read(_Config) ->
     {ok,content, #coap_content{max_age = MaxAgeLeft,payload = Payload}} = Reply1,
     ?_assertEqual(true, MaxAgeLeft<60),
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, Uri).
 
-case02_read(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
+t_case02_read(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"PubPayload">>,
@@ -619,12 +538,9 @@ case02_read(_Config) ->
     ?LOGT("Reply=~p", [Reply1]),
     {error, bad_request} = Reply1,
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, Uri).
 
-case03_read(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
+t_case03_read(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Uri = "coap://127.0.0.1/ps/"++TopicStr++"?c=client1&u=tom&p=secret",
@@ -633,14 +549,9 @@ case03_read(_Config) ->
     %% GET to read the nexisted topic "topic1", got not_found
     Reply = er_coap_client:request(get, Uri),
     ?LOGT("Reply=~p", [Reply]),
-    {error, not_found} = Reply,
+    {error, not_found} = Reply.
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case04_read(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
+t_case04_read(_Config) ->
     Topic = <<"topic1">>,
     TopicStr = binary_to_list(Topic),
     Payload = <<"PubPayload">>,
@@ -664,13 +575,9 @@ case04_read(_Config) ->
     ?LOGT("Reply=~p", [Reply1]),
     {error, bad_request} = Reply1,
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, Uri).
 
-case05_read(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case05_read(_Config) ->
     Topic = <<"a/b">>,
     TopicStr = binary_to_list(Topic),
     PercentEncodedTopic = http_uri:encode(TopicStr),
@@ -695,13 +602,9 @@ case05_read(_Config) ->
     ?LOGT("Reply=~p", [Reply1]),
     {ok, content, #coap_content{payload = <<>>}}= Reply1,
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+    {ok, deleted, #coap_content{}} = er_coap_client:request(delete, URI).
 
-case01_delete(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case01_delete(_Config) ->
     TopicInPayload = <<"a/b">>,
     TopicStr = binary_to_list(TopicInPayload),
     PercentEncodedTopic = http_uri:encode(TopicStr),
@@ -732,15 +635,9 @@ case01_delete(_Config) ->
     {ok, deleted, #coap_content{}}= ReplyD,
 
     ?assertEqual(false, emqx_coap_ps_topics:is_topic_existed(TopicInPayload)),
-    ?assertEqual(false, emqx_coap_ps_topics:is_topic_existed(TopicInPayload1)),
+    ?assertEqual(false, emqx_coap_ps_topics:is_topic_existed(TopicInPayload1)).
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
-
-case02_delete(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
+t_case02_delete(_Config) ->
     TopicInPayload = <<"a/b">>,
     TopicStr = binary_to_list(TopicInPayload),
     PercentEncodedTopic = http_uri:encode(TopicStr),
@@ -749,27 +646,13 @@ case02_delete(_Config) ->
     Uri1 = "coap://127.0.0.1/ps/"++PercentEncodedTopic++"?c=client1&u=tom&p=secret",
     Reply1 = er_coap_client:request(delete, Uri1),
     ?LOGT("Reply=~p", [Reply1]),
-    {error, not_found} = Reply1,
+    {error, not_found} = Reply1.
 
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+t_case13_emit_stats_test(_Config) ->
+    ok.
 
-
-case13_emit_stats_test(_Config) ->
-    test_mqtt_broker:start_link(),
-    {ok, _Started} = application:ensure_all_started(emqx_coap),
-    timer:sleep(100),
-
-    Topic = <<"a/b">>, Payload = <<"ET629">>,
-    TopicStr = http_uri:encode(binary_to_list(Topic)),
-    URI = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client2&u=tom&p=simple",
-    Reply = er_coap_client:request(put, URI, #coap_content{format = <<"application/octet-stream">>, payload = Payload}),
-    ?assertMatch({ok, _Code, _Content}, Reply),
-
-    test_mqtt_broker:print_table(),
-
-    ok = application:stop(emqx_coap),
-    test_mqtt_broker:stop().
+%%--------------------------------------------------------------------
+%% Internal functions
 
 receive_notification() ->
     receive
@@ -777,5 +660,15 @@ receive_notification() ->
             {coap_notify, Pid, N2, Code2, Content2}
     after 2000 ->
         receive_notification_timeout
+    end.
+
+assert_recv(Topic, Payload) ->
+    receive
+        {deliver, _, Msg} ->
+            ?assertEqual(Topic, Msg#message.topic),
+            ?assertEqual(Payload, Msg#message.payload)
+    after
+        500 ->
+            ?assert(false)
     end.
 

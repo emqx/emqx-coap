@@ -21,3 +21,4 @@ rebar3.crashdump
 *.swp
 erlang.mk
 .rebar3/
+etc/emqx_coap.conf.rendered
