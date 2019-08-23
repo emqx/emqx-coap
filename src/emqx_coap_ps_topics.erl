@@ -19,6 +19,9 @@
 -include("emqx_coap.hrl").
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/emqx_mqtt.hrl").
+-include_lib("emqx/include/logger.hrl").
+
+-logger_header("[CoAP-PS-TOPICS]").
 
 -export([ start_link/0
         , stop/1
@@ -46,9 +49,6 @@
         ]).
 
 -record(state, {}).
-
--define(LOG(Level, Format, Args),
-        emqx_logger:Level("CoAP-PS-TOPICS: " ++ Format, Args)).
 
 -define(COAP_TOPIC_TABLE, coap_topic).
 
