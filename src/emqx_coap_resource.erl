@@ -18,8 +18,11 @@
 
 -include("emqx_coap.hrl").
 -include_lib("emqx/include/emqx.hrl").
+-include_lib("emqx/include/logger.hrl").
 -include_lib("emqx/include/emqx_mqtt.hrl").
 -include_lib("gen_coap/include/coap.hrl").
+
+-logger_header("[CoAP-RES]").
 
 -export([ coap_discover/2
         , coap_get/5
@@ -37,9 +40,6 @@
 -endif.
 
 -define(MQTT_PREFIX, [<<"mqtt">>]).
-
--define(LOG(Level, Format, Args),
-    logger:Level("CoAP-RES: " ++ Format, Args)).
 
 % resource operations
 coap_discover(_Prefix, _Args) ->

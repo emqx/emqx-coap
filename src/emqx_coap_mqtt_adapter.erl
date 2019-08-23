@@ -48,17 +48,6 @@
 
 -define(DEFAULT_KEEPALIVE_DURATION,  60 * 2).
 
--ifdef(TEST).
--define(CHANN_INIT(A, B, C, D, E),     test_mqtt_broker:start(A, B, C, D, E)).
--define(CHANN_SUBSCRIBE(X, Y),         test_mqtt_broker:subscribe(X)).
--define(CHANN_UNSUBSCRIBE(X, Y),       test_mqtt_broker:unsubscribe(X)).
--define(CHANN_PUBLISH(A1, A2, P),      test_mqtt_broker:publish(A1, A2)).
--define(CHANN_HANDLEOUT(A1, P),        test_mqtt_broker:msg_to_pkt(A1, P)).
--define(CHANN_DELIVER_ACK(A1, A2, P),  P).
--define(CHANN_TIMEOUT(A1, A2, P),      P).
--define(CHANN_ENSURE_TIMER(A1, P),     ok).
--define(CHANN_SHUTDOWN(A, B),          ok).
--else.
 -define(CHANN_INIT(A, B, C, D, E),     chann_init(A, B, C, D, E)).
 -define(CHANN_SUBSCRIBE(X, Y),         chann_subscribe(X, Y)).
 -define(CHANN_UNSUBSCRIBE(X, Y),       chann_unsubscribe(X, Y)).
@@ -68,7 +57,6 @@
 -define(CHANN_TIMEOUT(A1, A2, P),      chann_timeout(A1, A2, P)).
 -define(CHANN_ENSURE_TIMER(A1, P),     emqx_channel:ensure_timer(A1, P)).
 -define(CHANN_SHUTDOWN(A, B),          emqx_channel:terminate(A, B)).
--endif.
 
 -define(CHAN_STATS, [recv_pkt, recv_msg, send_pkt, send_msg]).
 -define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
@@ -115,11 +103,19 @@ keepalive(Pid)->
 
 init({ClientId, Username, Password, Channel}) ->
     ?LOG(debug, "try to start adapter ClientId=~p, Username=~p, Password=~p, Channel=~p", [ClientId, Username, Password, Channel]),
+
     EnableStats = application:get_env(?APP, enable_stats, false),
+    Interval = application:get_env(?APP, keepalive, ?DEFAULT_KEEPALIVE_DURATION),
+
     case ?CHANN_INIT(ClientId, Username, Password, Channel, EnableStats) of
-        {ok, CState}          -> {ok, #state{chann = CState, peer = Channel, enable_stats = EnableStats}};
-        {stop, auth_failure}  -> {stop, auth_failure};
-        Other                 -> {stop, Other}
+        {ok, CState} ->
+            ?LOG(debug, "Keepalive at the interval of ~p", [Interval]),
+            AliveTimer = emqx_coap_timer:start_timer(Interval, {keepalive, check}),
+            {ok, #state{chann = CState, peer = Channel, keepalive = AliveTimer, enable_stats = EnableStats}};
+        {stop, auth_failure} ->
+            {stop, auth_failure};
+        Other ->
+            {stop, Other}
     end.
 
 handle_call({subscribe, Topic, CoapPid}, _From, State=#state{chann = CState, sub_topics = TopicList}) ->
@@ -168,7 +164,7 @@ handle_cast(keepalive, State=#state{keepalive = undefined}) ->
     {noreply, State, hibernate};
 
 handle_cast(keepalive, State=#state{keepalive = Keepalive, chann = CState}) ->
-    NCState = ?CHANN_ENSURE_TIMER(emit_stats, CState),
+    NCState = ?CHANN_ENSURE_TIMER(stats_timer, CState),
     NewKeepalive = emqx_coap_timer:kick_timer(Keepalive),
     {noreply, State#state{keepalive = NewKeepalive, chann = NCState}, hibernate};
 
@@ -177,7 +173,8 @@ handle_cast(Msg, State) ->
     {noreply, State, hibernate}.
 
 handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{chann = CState, sub_topics = Subscribers}) ->
-    case ?CHANN_HANDLEOUT(Deliver, CState) of
+    Delivers = emqx_misc:drain_deliver([Deliver]),
+    case ?CHANN_HANDLEOUT({deliver, Delivers}, CState) of
         {ok, CState1} -> {noreply, State#state{chann = CState1}};
         {ok, PubPkts, CState1} ->
             CState2 = deliver(PubPkts, CState1, Subscribers),
@@ -186,20 +183,15 @@ handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{chann = CState, su
             {stop, Reason, State#state{chann = CState1}}
     end;
 
-handle_info({keepalive, start, Interval}, StateData) ->
-    ?LOG(debug, "Keepalive at the interval of ~p", [Interval]),
-    KeepAlive = emqx_coap_timer:start_timer(Interval, {keepalive, check}),
-    {noreply, StateData#state{keepalive = KeepAlive}, hibernate};
-
-handle_info({keepalive, check}, StateData = #state{keepalive = KeepAlive}) ->
-    case emqx_coap_timer:is_timeout(KeepAlive) of
+handle_info({keepalive, check}, State = #state{keepalive = Timer}) ->
+    case emqx_coap_timer:is_timeout(Timer) of
         false ->
             ?LOG(debug, "Keepalive checked ok", []),
-            NewKeepAlive = emqx_coap_timer:restart_timer(KeepAlive),
-            {noreply, StateData#state{keepalive = NewKeepAlive}};
+            NTimer = emqx_coap_timer:restart_timer(Timer),
+            {noreply, State#state{keepalive = NTimer}};
         true ->
-            ?LOG(debug, "Keepalive timeout", []),
-            {stop, normal, StateData}
+            ?LOG(info, "Keepalive timeout", []),
+            {stop, normal, State}
     end;
 
 handle_info({timeout, TRef, emit_stats}, State) ->
@@ -219,8 +211,8 @@ handle_info(Info, State) ->
     ?LOG(error, "adapter unexpected info ~p", [Info]),
     {noreply, State, hibernate}.
 
-terminate(Reason, #state{chann = CState, keepalive = KeepAlive}) ->
-    emqx_coap_timer:cancel_timer(KeepAlive),
+terminate(Reason, #state{chann = CState, keepalive = Timer}) ->
+    emqx_coap_timer:cancel_timer(Timer),
     case {CState, Reason} of
         {undefined, _} ->
             ok;
@@ -234,7 +226,7 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
-%% CStatecol
+%% Channel adapter functions
 
 chann_init(ClientId, Username, Password, Channel, EnableStats) ->
     Options = [{zone, external}],
@@ -242,11 +234,12 @@ chann_init(ClientId, Username, Password, Channel, EnableStats) ->
                  sockname => {{0,0,0,0}, 5683},
                  peercert => nossl},
     CState = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
-    ConnPkt = #mqtt_packet_connect{client_id  = ClientId,
-                                   username = Username,
-                                   password = Password,
+    ConnPkt = #mqtt_packet_connect{client_id   = ClientId,
+                                   username    = Username,
+                                   password    = Password,
                                    clean_start = true,
-                                   keepalive = application:get_env(?APP, keepalive, ?DEFAULT_KEEPALIVE_DURATION)},
+                                   keepalive   = 0         %% Not set keepalive timer with channel functions
+                                  },
     case emqx_channel:handle_in(?CONNECT_PACKET(ConnPkt), CState) of
         {ok, _Connack, CState1} -> {ok, CState1};
         {stop, {shutdown, auth_failure}, _Connack, _CState1} -> {stop, auth_failure};
@@ -328,8 +321,13 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
 %%--------------------------------------------------------------------
 %% Misc funcs
 
-set_enable_stats(EnableStats, PState) ->
-    PState#{enable_stats => EnableStats}.
+set_enable_stats(EnableStats, CState) ->
+    StatsTimer = if
+                     EnableStats -> undefined;
+                     true -> disabled
+                 end,
+    Timers = element(6, CState),
+    setelement(6, CState, Timers#{stats_timer => StatsTimer}).
 
 handle_timeout(TRef, Msg = {emit_stats, _}, State = #state{chann = CState}) ->
     State#state{chann = ?CHANN_TIMEOUT(TRef, Msg, CState)}.

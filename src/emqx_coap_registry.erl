@@ -17,6 +17,9 @@
 -author("Feng Lee <feng@emqx.io>").
 
 -include("emqx_coap.hrl").
+-include_lib("emqx/include/logger.hrl").
+
+-logger_header("[CoAP-Registry]").
 
 -behaviour(gen_server).
 
@@ -42,10 +45,6 @@
 
 -define(RESPONSE_TAB, coap_response_process).
 -define(RESPONSE_REF_TAB, coap_response_process_ref).
-
--define(LOG(Level, Format, Args),
-    logger:Level("CoAP-REG: " ++ Format, Args)).
-
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
