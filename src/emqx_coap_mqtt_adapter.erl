@@ -113,7 +113,13 @@ init({ClientId, Username, Password, Channel}) ->
         {ok, CState} ->
             ?LOG(debug, "Keepalive at the interval of ~p", [Interval]),
             AliveTimer = emqx_coap_timer:start_timer(Interval, {keepalive, check}),
-            {ok, #state{chann = CState, peer = Channel, keepalive = AliveTimer, enable_stats = EnableStats}};
+
+            State = #state{chann = CState, peer = Channel, keepalive = AliveTimer, enable_stats = EnableStats},
+
+            ok = emqx_cm:register_channel(ClientId),
+            ok = emqx_cm:set_chan_attrs(ClientId, attrs(State)),
+
+            {ok, State};
         {stop, auth_failure} ->
             {stop, auth_failure};
         Other ->
@@ -250,7 +256,7 @@ chann_init(ClientId, Username, Password, Channel, EnableStats) ->
 
 chann_subscribe(Topic, CState) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    SubOpts = #{rh => 0, rap => 0, nl => 0, qos => ?QOS_1},
+    SubOpts = #{rh => 0, rap => 0, nl => 0, qos => ?QOS_0},
     throw_if(
       emqx_channel:handle_in(?SUBSCRIBE_PACKET(1, [{Topic, SubOpts}]), CState)).
 
@@ -343,6 +349,13 @@ throw_if({stop, Reason, _DisconnPkt, _CState}) ->
 throw_if(OtherRet) ->
     error(OtherRet).
 
+attrs(#state{peer = Channel, chann = ChanState}) ->
+    ConnAttrs = #{ socktype => udp
+                 , peername => Channel
+                 , sockname => {{0,0,0,0}, 5683}
+                 },
+    ChanAttrs = emqx_channel:attrs(ChanState),
+    maps:merge(ConnAttrs, ChanAttrs).
 
 stats(#state{chann = ChanState}) ->
     SockStats = socket_stats(undefined, ?SOCK_STATS),
