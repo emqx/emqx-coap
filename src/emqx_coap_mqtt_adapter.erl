@@ -1,4 +1,5 @@
-%% Copyright (c) 2013-2019 EMQ Technologies Co., Ltd. All Rights Reserved.
+%%--------------------------------------------------------------------
+%% Copyright (c) 2019 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -11,6 +12,7 @@
 %% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
+%%--------------------------------------------------------------------
 
 -module(emqx_coap_mqtt_adapter).
 
@@ -163,10 +165,9 @@ handle_call(Request, _From, State) ->
 handle_cast(keepalive, State=#state{keepalive = undefined}) ->
     {noreply, State, hibernate};
 
-handle_cast(keepalive, State=#state{keepalive = Keepalive, chann = CState}) ->
-    NCState = ?CHANN_ENSURE_TIMER(stats_timer, CState),
+handle_cast(keepalive, State=#state{keepalive = Keepalive}) ->
     NewKeepalive = emqx_coap_timer:kick_timer(Keepalive),
-    {noreply, State#state{keepalive = NewKeepalive, chann = NCState}, hibernate};
+    {noreply, State#state{keepalive = NewKeepalive}, hibernate};
 
 handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
@@ -177,7 +178,7 @@ handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{chann = CState, su
     case ?CHANN_HANDLEOUT({deliver, Delivers}, CState) of
         {ok, CState1} -> {noreply, State#state{chann = CState1}};
         {ok, PubPkts, CState1} ->
-            CState2 = deliver(PubPkts, CState1, Subscribers),
+            {ok, CState2} = deliver(PubPkts, CState1, Subscribers),
             {noreply, State#state{chann = CState2}};
         {stop, Reason, CState1} ->
             {stop, Reason, State#state{chann = CState1}}
@@ -290,7 +291,7 @@ chann_timeout(TRef, Msg, CState) ->
 %%--------------------------------------------------------------------
 %% Deliver
 
-deliver([], CState, _) -> CState;
+deliver([], CState, _) -> {ok, CState};
 deliver([Pub | More], CState, Subscribers) ->
     {ok, CState1} = deliver(Pub, CState, Subscribers),
     deliver(More, CState1, Subscribers);
