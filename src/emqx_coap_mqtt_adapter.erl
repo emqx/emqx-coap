@@ -165,10 +165,9 @@ handle_call(Request, _From, State) ->
 handle_cast(keepalive, State=#state{keepalive = undefined}) ->
     {noreply, State, hibernate};
 
-handle_cast(keepalive, State=#state{keepalive = Keepalive, chann = CState}) ->
-    NCState = ?CHANN_ENSURE_TIMER(stats_timer, CState),
+handle_cast(keepalive, State=#state{keepalive = Keepalive}) ->
     NewKeepalive = emqx_coap_timer:kick_timer(Keepalive),
-    {noreply, State#state{keepalive = NewKeepalive, chann = NCState}, hibernate};
+    {noreply, State#state{keepalive = NewKeepalive}, hibernate};
 
 handle_cast(Msg, State) ->
     ?LOG(error, "broker_api unexpected cast ~p", [Msg]),
@@ -179,7 +178,7 @@ handle_info(Deliver = {deliver, _Topic, _Msg}, State = #state{chann = CState, su
     case ?CHANN_HANDLEOUT({deliver, Delivers}, CState) of
         {ok, CState1} -> {noreply, State#state{chann = CState1}};
         {ok, PubPkts, CState1} ->
-            CState2 = deliver(PubPkts, CState1, Subscribers),
+            {ok, CState2} = deliver(PubPkts, CState1, Subscribers),
             {noreply, State#state{chann = CState2}};
         {stop, Reason, CState1} ->
             {stop, Reason, State#state{chann = CState1}}
