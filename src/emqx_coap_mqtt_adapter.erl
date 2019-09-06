@@ -291,7 +291,7 @@ chann_timeout(TRef, Msg, CState) ->
 %%--------------------------------------------------------------------
 %% Deliver
 
-deliver([], CState, _) -> CState;
+deliver([], CState, _) -> {ok, CState};
 deliver([Pub | More], CState, Subscribers) ->
     {ok, CState1} = deliver(Pub, CState, Subscribers),
     deliver(More, CState1, Subscribers);
