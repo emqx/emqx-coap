@@ -232,7 +232,7 @@ code_change(_OldVsn, State, _Extra) ->
 chann_init(ClientId, Username, Password, Channel, EnableStats) ->
     Options = [{zone, external}],
     ConnInfo = #{peername => Channel,
-                 sockname => {{0,0,0,0}, 5683},
+                 protocol => coap,
                  peercert => nossl},
     CState = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
     ConnPkt = #mqtt_packet_connect{client_id   = ClientId,
@@ -280,7 +280,7 @@ chann_deliver_ack(?QOS_2, PktId, CState) ->
       emqx_channel:handle_in(?PUBCOMP_PACKET(PktId), CState1)).
 
 chann_timeout(TRef, Msg, CState) ->
-    case emqx_channel:timeout(TRef, Msg, CState) of
+    case emqx_channel:handle_timeout(TRef, Msg, CState) of
         {ok, NCState} -> NCState;
         {ok, _Pkts, NCState} ->
             %% TODO: pkts???
@@ -327,8 +327,8 @@ set_enable_stats(EnableStats, CState) ->
                      EnableStats -> undefined;
                      true -> disabled
                  end,
-    Timers = element(6, CState),
-    setelement(6, CState, Timers#{stats_timer => StatsTimer}).
+    Timers = element(9, CState),
+    setelement(9, CState, Timers#{stats_timer => StatsTimer}).
 
 handle_timeout(TRef, Msg = {emit_stats, _}, State = #state{chann = CState}) ->
     State#state{chann = ?CHANN_TIMEOUT(TRef, Msg, CState)}.
