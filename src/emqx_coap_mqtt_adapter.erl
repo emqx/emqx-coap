@@ -232,7 +232,7 @@ code_change(_OldVsn, State, _Extra) ->
 chann_init(ClientId, Username, Password, Channel, EnableStats) ->
     Options = [{zone, external}],
     ConnInfo = #{peername => Channel,
-                 sockname => {{0,0,0,0}, 5683},
+                 protocol => coap,
                  peercert => nossl},
     CState = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
     ConnPkt = #mqtt_packet_connect{client_id   = ClientId,
