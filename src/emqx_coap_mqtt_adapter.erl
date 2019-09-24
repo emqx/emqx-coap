@@ -104,7 +104,8 @@ keepalive(Pid)->
 %%--------------------------------------------------------------------
 
 init({ClientId, Username, Password, Channel}) ->
-    ?LOG(debug, "try to start adapter ClientId=~p, Username=~p, Password=~p, Channel=~p", [ClientId, Username, Password, Channel]),
+    ?LOG(debug, "try to start adapter ClientId=~p, Username=~p, Password=~p, Channel=~p",
+         [ClientId, Username, Password, Channel]),
 
     EnableStats = application:get_env(?APP, enable_stats, false),
     Interval = application:get_env(?APP, keepalive, ?DEFAULT_KEEPALIVE_DURATION),
@@ -235,7 +236,7 @@ chann_init(ClientId, Username, Password, Channel, EnableStats) ->
                  protocol => coap,
                  peercert => nossl},
     CState = set_enable_stats(EnableStats, emqx_channel:init(ConnInfo, Options)),
-    ConnPkt = #mqtt_packet_connect{client_id   = ClientId,
+    ConnPkt = #mqtt_packet_connect{clientid    = ClientId,
                                    username    = Username,
                                    password    = Password,
                                    clean_start = true,
