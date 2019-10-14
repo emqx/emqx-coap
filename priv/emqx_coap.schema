@@ -5,11 +5,6 @@
   {datatype, integer}
 ]}.
 
-{mapping, "coap.keepalive", "emqx_coap.keepalive", [
-  {default, "120s"},
-  {datatype, {duration, s}}
-]}.
-
 {mapping, "coap.enable_stats", "emqx_coap.enable_stats", [
   {datatype, flag}
 ]}.
