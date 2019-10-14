@@ -53,7 +53,6 @@ coap_get(ChId, ?MQTT_PREFIX, Path, Query, _Content) ->
     case emqx_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
         {ok, Pid} ->
             put(mqtt_client_pid, Pid),
-            emqx_coap_mqtt_adapter:keepalive(Pid),
             #coap_content{};
         {error, auth_failure} ->
             put(mqtt_client_pid, undefined),

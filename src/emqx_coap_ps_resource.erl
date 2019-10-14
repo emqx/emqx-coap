@@ -56,7 +56,6 @@ coap_get(ChId, ?PS_PREFIX, TopicPath, Query, Content=#coap_content{format = Form
     case emqx_coap_mqtt_adapter:client_pid(Clientid, Usr, Passwd, ChId) of
         {ok, Pid} ->
             put(mqtt_client_pid, Pid),
-            emqx_coap_mqtt_adapter:keepalive(Pid),
             case Format of
                 <<"application/link-format">> ->
                     Content;
