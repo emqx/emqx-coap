@@ -57,6 +57,8 @@
 -define(CHAN_STATS, [recv_pkt, recv_msg, send_pkt, send_msg]).
 -define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
 
+-define(ALIVE_INTERVAL, 20000).
+
 %%--------------------------------------------------------------------
 %% API
 %%--------------------------------------------------------------------
@@ -100,6 +102,7 @@ init({ClientId, Username, Password,  {PeerHost, _Port}= Channel}) ->
     case authenticate(ClientId, Username, Password, PeerHost) of
         ok ->
             ClientInfo = #{clientid => ClientId, username => Username, peerhost => PeerHost},
+            erlang:send_after(?ALIVE_INTERVAL, self(), check_alive),
             {ok, #state{client_info = ClientInfo, peer = Channel}};
         {error, Reason} ->
             ?LOG(debug, "authentication faild: ~p", [Reason]),
@@ -151,8 +154,11 @@ handle_info({deliver, _Topic, #message{topic = Topic, payload = Payload}}, State
     deliver([{Topic, Payload}], Subscribers),
     {noreply, State, hibernate};
 
-handle_info(timeout, State) ->
-    {stop, {shutdown, idle_timeout}, State};
+handle_info(check_alive, State = #state{sub_topics = []}) ->
+    {stop, {shutdown, check_alive}, State};
+handle_info(check_alive, State) ->
+    erlang:send_after(?ALIVE_INTERVAL, self(), check_alive),
+    {noreply, State, hibernate};
 
 handle_info({shutdown, Error}, State) ->
     {stop, {shutdown, Error}, State};
@@ -197,10 +203,10 @@ authenticate(ClientId, Username, Password, PeerHost) ->
             {error, Error}
     end.
 
-chann_subscribe(Topic, ClientInfo) ->
+chann_subscribe(Topic, ClientInfo = #{clientid := ClientId}) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    Opts = #{rh => 0, rap => 0, nl => 0, qos => ?QOS_0},
-    emqx_broker:subscribe(Topic, Opts),
+    Opts = #{rh => 0, rap => 0, nl => 0, qos => ?QOS_0, is_new => false},
+    emqx_broker:subscribe(Topic, ClientId, Opts),
     emqx_hooks:run('session.subscribed', [ClientInfo, Topic, Opts]).
 
 chann_unsubscribe(Topic, ClientInfo) ->
