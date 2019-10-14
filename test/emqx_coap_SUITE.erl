@@ -143,37 +143,6 @@ t_observe_pub(_Config) ->
 
     er_coap_observer:stop(Pid).
 
-t_keepalive(_Config) ->
-    Topic = <<"+/b">>, TopicStr = http_uri:encode(binary_to_list(Topic)),
-    Payload = <<"123">>,
-    Uri = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    {ok, Pid, N, Code, Content} = er_coap_observer:observe(Uri),
-    ?LOGT("observer Pid=~p, N=~p, Code=~p, Content=~p", [Pid, N, Code, Content]),
-
-    [SubPid] = emqx:subscribers(Topic),
-    ?assert(is_pid(SubPid)),
-
-    timer:sleep(2000),
-
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % keepalive action should lead to nothing ??
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    URI3 = "coap://127.0.0.1/mqtt/"++TopicStr++"?c=client1&u=tom&p=secret",
-    Reply3 = er_coap_client:request(get, URI3),
-    ?assertMatch({ok,content, _}, Reply3),
-
-    receive_notification_timeout = receive_notification(),
-
-    %% Publish a message
-    emqx:publish(emqx_message:make(Topic, Payload)),
-    Notif = receive_notification(),
-
-    ?LOGT("observer get Notif=~p", [Notif]),
-    {coap_notify, _, _, {ok,content}, #coap_content{payload = PayloadRecv}} = Notif,
-    ?_assertEqual(Payload, PayloadRecv),
-
-    er_coap_observer:stop(Pid).
-
 t_one_clientid_sub_2_topics(_Config) ->
     Topic1 = <<"abc">>, TopicStr1 = binary_to_list(Topic1),
     Payload1 = <<"123">>,
