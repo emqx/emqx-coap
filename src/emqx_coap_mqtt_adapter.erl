@@ -183,12 +183,12 @@ code_change(_OldVsn, State, _Extra) ->
 %% Channel adapter functions
 
 authenticate(ClientId, Username, Password, PeerHost) ->
-    Credentials = credentials(PeerHost, ClientId, Username, Password),
-    case emqx_access_control:authenticate(Credentials) of
+    ClientInfo = clientinfo(PeerHost, ClientId, Username, Password),
+    case emqx_access_control:authenticate(ClientInfo) of
         {ok, AuthResult} ->
-            Credentials1 = maps:merge(Credentials, AuthResult),
+            ClientInfo1 = maps:merge(ClientInfo, AuthResult),
             emqx_hooks:run('client.connected',
-                          [Credentials1, ?RC_SUCCESS,
+                          [ClientInfo1, ?RC_SUCCESS,
                           #{clean_start => true,
                             expiry_interval => 0,
                             proto_name => coap,
@@ -199,7 +199,7 @@ authenticate(ClientId, Username, Password, PeerHost) ->
                             proto_ver => <<"1.0">>}]),
             ok;
         {error, Error} ->
-            emqx_hooks:run('client.connected', [Credentials, ?RC_NOT_AUTHORIZED, #{}]),
+            emqx_hooks:run('client.connected', [ClientInfo, ?RC_NOT_AUTHORIZED, #{}]),
             {error, Error}
     end.
 
@@ -250,8 +250,11 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
     Matched andalso (CoapPid ! {dispatch, TopicName, Payload}),
     deliver_to_coap(TopicName, Payload, T).
 
-credentials(PeerHost, ClientId, Username, Password) ->
-    #{peerhost => PeerHost,
+clientinfo(PeerHost, ClientId, Username, Password) ->
+    #{zone => undefined,
+      protocol => coap,
+      peerhost => PeerHost,
       clientid => ClientId,
       username => Username,
       password => Password}.
+
