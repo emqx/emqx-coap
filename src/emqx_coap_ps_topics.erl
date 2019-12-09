@@ -87,7 +87,8 @@ is_topic_existed(Topic) ->
 
 is_topic_timeout(Topic) when is_binary(Topic) ->
     [{Topic, MaxAge, _, _, TimeStamp}] = ets:lookup(?COAP_TOPIC_TABLE, Topic),
-    MaxAge < (timer:now_diff(erlang:timestamp(), TimeStamp) / 1000000).
+    %% MaxAge: x seconds
+    MaxAge < ((erlang:system_time(millisecond) - TimeStamp) / 1000).
 
 lookup_topic_info(Topic) ->
     ets:lookup(?COAP_TOPIC_TABLE, Topic).
