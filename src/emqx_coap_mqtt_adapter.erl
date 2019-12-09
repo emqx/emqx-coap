@@ -193,7 +193,7 @@ authenticate(ClientId, Username, Password, PeerHost) ->
                             expiry_interval => 0,
                             proto_name => coap,
                             peerhost => PeerHost,
-                            connected_at => os:timestamp(),
+                            connected_at => erlang:system_time(second),
                             keepalive => 0,
                             peercert => nossl,
                             proto_ver => <<"1.0">>}]),

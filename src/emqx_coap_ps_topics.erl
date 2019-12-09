@@ -167,18 +167,18 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Functions
 %%--------------------------------------------------------------------
 create_table_element(Topic, MaxAge, CT, Payload) ->
-    TopicInfo = {Topic, MaxAge, CT, Payload, os:timestamp()},
+    TopicInfo = {Topic, MaxAge, CT, Payload, erlang:system_time(millisecond)},
     ?LOG(debug, "Insert ~p in the coap_topic table", [TopicInfo]),
     ets:insert_new(?COAP_TOPIC_TABLE, TopicInfo).
 
 update_table_element(Topic, Payload) ->
     ?LOG(debug, "Update the topic=~p only with Payload", [Topic]),
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{4, Payload}, {5, os:timestamp()}]).
+    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{4, Payload}, {5, erlang:system_time(millisecond)}]).
 
 update_table_element(Topic, MaxAge, Payload) ->
     ?LOG(debug, "Update the topic=~p info of MaxAge=~p and Payload", [Topic, MaxAge]),
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, MaxAge}, {4, Payload}, {5, os:timestamp()}]).
+    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, MaxAge}, {4, Payload}, {5, erlang:system_time(millisecond)}]).
 
 update_table_element(Topic, MaxAge, CT, <<>>) ->
     ?LOG(debug, "Update the topic=~p info of MaxAge=~p, CT=~p, payload=<<>>", [Topic, MaxAge, CT]),
-    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, MaxAge}, {3, CT}, {5, os:timestamp()}]).
+    ets:update_element(?COAP_TOPIC_TABLE, Topic, [{2, MaxAge}, {3, CT}, {5, erlang:system_time(millisecond)}]).
