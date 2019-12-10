@@ -29,11 +29,9 @@
 start(_Type, _Args) ->
     {ok, Sup} = emqx_coap_sup:start_link(),
     emqx_coap_server:start(),
-    emqx_coap_config:register(),
     {ok,Sup}.
 
 stop(_State) ->
     _ = coap_server:stop_udp(coap_udp_socket),
-    _ = coap_server:stop_dtls(coap_dtls_socket),
-    emqx_coap_config:unregister().
+    _ = coap_server:stop_dtls(coap_dtls_socket).
 
