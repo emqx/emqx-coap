@@ -262,7 +262,7 @@ handle_received_create(TopicPrefix, MaxAge, Payload) ->
 %% When topic is timeout, server should return nocontent here,
 %% but gen_coap only receive return value of #coap_content from coap_get, so temporarily we can't give the Code 2.07 {ok, nocontent} out.TBC!!!
 return_resource(Topic, Payload, MaxAge, TimeStamp, Content) ->
-    TimeElapsed = trunc(timer:now_diff(erlang:timestamp(), TimeStamp) / 1000),
+    TimeElapsed = trunc((erlang:system_time(millisecond) - TimeStamp) / 1000),
     case TimeElapsed < MaxAge of
         true  ->
             LeftTime = (MaxAge - TimeElapsed),
