@@ -3,7 +3,7 @@
   {vsn, "git"},
   {modules, []},
   {registered, []},
-  {applications, [kernel,stdlib,clique,gen_coap]},
+  {applications, [kernel,stdlib,gen_coap]},
   {mod, {emqx_coap_app, []}},
   {env, []},
   {licenses, ["Apache-2.0"]},
