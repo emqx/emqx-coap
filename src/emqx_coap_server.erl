@@ -36,5 +36,6 @@ start() ->
     emqx_coap_ps_topics:start_link().
 
 stop() ->
-    application:stop(gen_coap).
+    _ = coap_server:stop_udp(coap_udp_socket),
+    _ = coap_server:stop_dtls(coap_dtls_socket).
 

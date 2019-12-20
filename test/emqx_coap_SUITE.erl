@@ -37,6 +37,7 @@ set_sepecial_cfg(_) ->
     ok.
 
 end_per_suite(Config) ->
+    emqx_ct_helpers:stop_apps([emqx_coap]),
     Config.
 
 %%--------------------------------------------------------------------
