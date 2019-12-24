@@ -23,7 +23,6 @@
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/emqx_mqtt.hrl").
 -include_lib("emqx/include/logger.hrl").
-
 -include_lib("emqx/include/emqx_mqtt.hrl").
 
 -logger_header("[CoAP-Adpter]").
@@ -38,6 +37,8 @@
         , stop/1
         ]).
 
+-export([call/2]).
+
 %% gen_server.
 -export([ init/1
         , handle_call/3
@@ -47,17 +48,13 @@
         , code_change/3
         ]).
 
--record(state, {client_info, peer, sub_topics = []}).
-
--define(CHANN_HANDLEOUT(A1, P),        emqx_channel:handle_out(A1, P)).
--define(CHANN_TIMEOUT(A1, A2, P),      chann_timeout(A1, A2, P)).
--define(CHANN_ENSURE_TIMER(A1, P),     emqx_channel:ensure_timer(A1, P)).
--define(CHANN_SHUTDOWN(A, B),          emqx_channel:terminate(A, B)).
-
--define(CHAN_STATS, [recv_pkt, recv_msg, send_pkt, send_msg]).
--define(SOCK_STATS, [recv_oct, recv_cnt, send_oct, send_cnt, send_pend]).
+-record(state, {client_info, peername, sub_topics = [], connected_at}).
 
 -define(ALIVE_INTERVAL, 20000).
+
+-define(CONN_STATS, [recv_pkt, recv_msg, send_pkt, send_msg]).
+
+-define(SUBOPTS, #{rh => 0, rap => 0, nl => 0, qos => ?QOS_0, is_new => false}).
 
 %%--------------------------------------------------------------------
 %% API
@@ -92,6 +89,10 @@ unsubscribe(Pid, Topic) ->
 publish(Pid, Topic, Payload) ->
     gen_server:call(Pid, {publish, Topic, Payload}).
 
+%% For emqx_management plugin
+call(Pid, Msg) ->
+    Pid ! Msg, ok.
+
 %%--------------------------------------------------------------------
 %% gen_server Callbacks
 %%--------------------------------------------------------------------
@@ -102,8 +103,17 @@ init({ClientId, Username, Password,  {PeerHost, _Port}= Channel}) ->
     case authenticate(ClientId, Username, Password, PeerHost) of
         ok ->
             ClientInfo = #{clientid => ClientId, username => Username, peerhost => PeerHost},
+            State = #state{client_info = ClientInfo,
+                           peername = Channel,
+                           connected_at = os:system_time(second)},
+
+            %% TODO: Evict same clientid on other node??
+
             erlang:send_after(?ALIVE_INTERVAL, self(), check_alive),
-            {ok, #state{client_info = ClientInfo, peer = Channel}};
+
+            emqx_cm:register_channel(ClientId, info(State), stats(State)),
+
+            {ok, State};
         {error, Reason} ->
             ?LOG(debug, "authentication faild: ~p", [Reason]),
             {stop, {shutdown, Reason}}
@@ -124,12 +134,11 @@ handle_call({publish, Topic, Payload}, _From, State=#state{client_info = ClientI
     chann_publish(Topic, Payload, ClientInfo),
     {reply, ok, State};
 
-handle_call(info, _From, State = #state{peer = PeerHost}) ->
-    ClientInfo = [{peerhost, PeerHost}],
-    {reply, ClientInfo, State};
+handle_call(info, _From, State) ->
+    {reply, info(State), State};
 
 handle_call(stats, _From, State) ->
-    {reply, [], State, hibernate};
+    {reply, stats(State), State, hibernate};
 
 handle_call(kick, _From, State) ->
     {stop, {shutdown, kick}, ok, State};
@@ -167,13 +176,19 @@ handle_info({shutdown, conflict, {ClientId, NewPid}}, State) ->
     ?LOG(warning, "clientid '~s' conflict with ~p", [ClientId, NewPid]),
     {stop, {shutdown, conflict}, State};
 
+handle_info(kick, State) ->
+    ?LOG(info, "Kicked", []),
+    {stop, {shutdown, kick}, State};
+
 handle_info(Info, State) ->
     ?LOG(error, "adapter unexpected info ~p", [Info]),
     {noreply, State, hibernate}.
 
 terminate(Reason, #state{client_info = ClientInfo, sub_topics = SubTopics}) ->
     ?LOG(debug, "unsubscribe ~p while exiting for ~p", [SubTopics, Reason]),
+    #{clientid := ClientId} = ClientInfo,
     [chann_unsubscribe(Topic, ClientInfo) || {Topic, _} <- SubTopics],
+    emqx_cm:unregister_channel(ClientId),
     emqx_hooks:run('client.disconnected', [ClientInfo, Reason, #{}]).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -205,9 +220,8 @@ authenticate(ClientId, Username, Password, PeerHost) ->
 
 chann_subscribe(Topic, ClientInfo = #{clientid := ClientId}) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
-    Opts = #{rh => 0, rap => 0, nl => 0, qos => ?QOS_0, is_new => false},
-    emqx_broker:subscribe(Topic, ClientId, Opts),
-    emqx_hooks:run('session.subscribed', [ClientInfo, Topic, Opts]).
+    emqx_broker:subscribe(Topic, ClientId, ?SUBOPTS),
+    emqx_hooks:run('session.subscribed', [ClientInfo, Topic, ?SUBOPTS]).
 
 chann_unsubscribe(Topic, ClientInfo) ->
     ?LOG(debug, "unsubscribe Topic=~p", [Topic]),
@@ -250,11 +264,89 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
     Matched andalso (CoapPid ! {dispatch, TopicName, Payload}),
     deliver_to_coap(TopicName, Payload, T).
 
+%%--------------------------------------------------------------------
+%% Info & Stats
+
+info(State) ->
+    ChannInfo = chann_info(State),
+    ChannInfo#{sockinfo => sockinfo(State)}.
+
+%% copies from emqx_connection:info/1
+sockinfo(#state{peername = Peername}) ->
+    #{socktype => udp,
+      peername => Peername,
+      sockname => {{127,0,0,1}, 5683},    %% FIXME: Sock?
+      sockstate =>  running,
+      active_n => 1
+     }.
+
+%% copies from emqx_channel:info/1
+chann_info(State = #state{client_info = ClientInfo}) ->
+    #{conninfo => conninfo(State),
+      conn_state => connected,
+      clientinfo => ClientInfo,
+      session => maps:from_list(session_info(State)),
+      will_msg => undefined
+     }.
+
+conninfo(#state{peername = Peername,
+                connected_at = ConnectedAt,
+                client_info = #{clientid := ClientId}}) ->
+    #{socktype => udp,
+      sockname => {{127,0,0,1}, 5683},
+      peername => Peername,
+      peercert => nossl,        %% TODO: dtls
+      conn_mod => ?MODULE,
+      proto_name => <<"coap">>,
+      proto_ver => 1,
+      clean_start => true,
+      clientid => ClientId,
+      username => undefined,
+      conn_props => undefined,
+      connected => true,
+      connected_at => ConnectedAt,
+      keepalive => 0,
+      receive_maximum => 0,
+      expiry_interval => 0
+     }.
+
+%% copies from emqx_session:info/1
+session_info(#state{sub_topics = SubTopics, connected_at = ConnectedAt}) ->
+    Subs = lists:foldl(
+             fun({Topic, _}, Acc) ->
+                Acc#{Topic => ?SUBOPTS}
+             end, #{}, SubTopics),
+    [{subscriptions, Subs},
+     {upgrade_qos, false},
+     {retry_interval, 0},
+     {await_rel_timeout, 0},
+     {created_at, ConnectedAt}
+    ].
+
+%% The stats keys copied from emqx_connection:stats/1
+stats(#state{sub_topics = SubTopics}) ->
+    SockStats = [{recv_oct,0}, {recv_cnt,0}, {send_oct,0}, {send_cnt,0}, {send_pend,0}],
+    ConnStats = emqx_pd:get_counters(?CONN_STATS),
+    ChanStats = [{subscriptions_cnt, length(SubTopics)},
+                 {subscriptions_max, length(SubTopics)},
+                 {inflight_cnt, 0},
+                 {inflight_max, 0},
+                 {mqueue_len, 0},
+                 {mqueue_max, 0},
+                 {mqueue_dropped, 0},
+                 {next_pkt_id, 0},
+                 {awaiting_rel_cnt, 0},
+                 {awaiting_rel_max, 0}
+                ],
+    ProcStats = emqx_misc:proc_stats(),
+    lists:append([SockStats, ConnStats, ChanStats, ProcStats]).
+
 clientinfo(PeerHost, ClientId, Username, Password) ->
     #{zone => undefined,
       protocol => coap,
       peerhost => PeerHost,
       clientid => ClientId,
       username => Username,
-      password => Password}.
+      password => Password
+     }.
 
