@@ -106,8 +106,7 @@ handle_info({dispatch, Topic, Payload}, State) ->
     ?LOG(debug, "dispatch Topic=~p, Payload=~p", [Topic, Payload]),
     {notify, [], #coap_content{format = <<"application/octet-stream">>, payload = Payload}, State};
 handle_info(Message, State) ->
-    ?LOG(error, "Unknown Message ~p", [Message]),
-    {noreply, State}.
+    emqx_coap_mqtt_adapter:handle_info(Message, State).
 
 coap_ack(_Ref, State) -> {ok, State}.
 
