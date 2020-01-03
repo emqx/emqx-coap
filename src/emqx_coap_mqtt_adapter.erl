@@ -1,5 +1,5 @@
 %%--------------------------------------------------------------------
-%% Copyright (c) 2019 EMQ Technologies Co., Ltd. All Rights Reserved.
+%% Copyright (c) 2020 EMQ Technologies Co., Ltd. All Rights Reserved.
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@
         , code_change/3
         ]).
 
--record(state, {client_info, peername, sub_topics = [], connected_at}).
+-record(state, {peername, clientid, username, password, sub_topics = [], connected_at}).
 
 -define(ALIVE_INTERVAL, 20000).
 
@@ -97,17 +97,20 @@ call(Pid, Msg) ->
 %% gen_server Callbacks
 %%--------------------------------------------------------------------
 
-init({ClientId, Username, Password,  {PeerHost, _Port}= Channel}) ->
+init({ClientId, Username, Password, Channel}) ->
     ?LOG(debug, "try to start adapter ClientId=~p, Username=~p, Password=~p, Channel=~p",
          [ClientId, Username, Password, Channel]),
-    case authenticate(ClientId, Username, Password, PeerHost) of
-        ok ->
-            ClientInfo = #{clientid => ClientId, username => Username, peerhost => PeerHost},
-            State = #state{client_info = ClientInfo,
-                           peername = Channel,
-                           connected_at = os:system_time(second)},
+    State0 = #state{peername = Channel,
+                    clientid = ClientId,
+                    username = Username,
+                    password = Password},
+    case emqx_access_control:authenticate(clientinfo(State0)) of
+        {ok, _AuthResult} ->
+            State = State0#state{connected_at = os:system_time(second)},
 
             %% TODO: Evict same clientid on other node??
+
+            emqx_hooks:run('client.connected', [clientinfo(State), conninfo(State)]),
 
             erlang:send_after(?ALIVE_INTERVAL, self(), check_alive),
 
@@ -115,23 +118,26 @@ init({ClientId, Username, Password,  {PeerHost, _Port}= Channel}) ->
 
             {ok, State};
         {error, Reason} ->
+
+            %% TODO: emqx_hooks:run('client.connected', _, _), ?
+
             ?LOG(debug, "authentication faild: ~p", [Reason]),
             {stop, {shutdown, Reason}}
     end.
 
-handle_call({subscribe, Topic, CoapPid}, _From, State=#state{client_info = ClientInfo, sub_topics = TopicList}) ->
+handle_call({subscribe, Topic, CoapPid}, _From, State=#state{sub_topics = TopicList}) ->
     NewTopics = proplists:delete(Topic, TopicList),
     IsWild = emqx_topic:wildcard(Topic),
-    chann_subscribe(Topic, ClientInfo),
+    chann_subscribe(Topic, State),
     {reply, ok, State#state{sub_topics = [{Topic, {IsWild, CoapPid}}|NewTopics]}, hibernate};
 
-handle_call({unsubscribe, Topic, _CoapPid}, _From, State=#state{client_info = ClientInfo, sub_topics = TopicList}) ->
+handle_call({unsubscribe, Topic, _CoapPid}, _From, State=#state{sub_topics = TopicList}) ->
     NewTopics = proplists:delete(Topic, TopicList),
-    chann_unsubscribe(Topic, ClientInfo),
+    chann_unsubscribe(Topic, State),
     {reply, ok, State#state{sub_topics = NewTopics}, hibernate};
 
-handle_call({publish, Topic, Payload}, _From, State=#state{client_info = ClientInfo}) ->
-    chann_publish(Topic, Payload, ClientInfo),
+handle_call({publish, Topic, Payload}, _From, State) ->
+    chann_publish(Topic, Payload, State),
     {reply, ok, State};
 
 handle_call(info, _From, State) ->
@@ -184,12 +190,14 @@ handle_info(Info, State) ->
     ?LOG(error, "adapter unexpected info ~p", [Info]),
     {noreply, State, hibernate}.
 
-terminate(Reason, #state{client_info = ClientInfo, sub_topics = SubTopics}) ->
+terminate(Reason, State = #state{clientid = ClientId, sub_topics = SubTopics}) ->
     ?LOG(debug, "unsubscribe ~p while exiting for ~p", [SubTopics, Reason]),
-    #{clientid := ClientId} = ClientInfo,
-    [chann_unsubscribe(Topic, ClientInfo) || {Topic, _} <- SubTopics],
+    [chann_unsubscribe(Topic, State) || {Topic, _} <- SubTopics],
     emqx_cm:unregister_channel(ClientId),
-    emqx_hooks:run('client.disconnected', [ClientInfo, Reason, #{}]).
+
+    ConnInfo0 = conninfo(State),
+    ConnInfo = ConnInfo0#{disconnected_at => erlang:system_time(second)},
+    emqx_hooks:run('client.disconnected', [clientinfo(State), Reason, ConnInfo]).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -197,39 +205,18 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %% Channel adapter functions
 
-authenticate(ClientId, Username, Password, PeerHost) ->
-    ClientInfo = clientinfo(PeerHost, ClientId, Username, Password),
-    case emqx_access_control:authenticate(ClientInfo) of
-        {ok, AuthResult} ->
-            ClientInfo1 = maps:merge(ClientInfo, AuthResult),
-            emqx_hooks:run('client.connected',
-                          [ClientInfo1, ?RC_SUCCESS,
-                          #{clean_start => true,
-                            expiry_interval => 0,
-                            proto_name => coap,
-                            peerhost => PeerHost,
-                            connected_at => erlang:system_time(second),
-                            keepalive => 0,
-                            peercert => nossl,
-                            proto_ver => <<"1.0">>}]),
-            ok;
-        {error, Error} ->
-            emqx_hooks:run('client.connected', [ClientInfo, ?RC_NOT_AUTHORIZED, #{}]),
-            {error, Error}
-    end.
-
-chann_subscribe(Topic, ClientInfo = #{clientid := ClientId}) ->
+chann_subscribe(Topic, State = #state{clientid = ClientId}) ->
     ?LOG(debug, "subscribe Topic=~p", [Topic]),
     emqx_broker:subscribe(Topic, ClientId, ?SUBOPTS),
-    emqx_hooks:run('session.subscribed', [ClientInfo, Topic, ?SUBOPTS]).
+    emqx_hooks:run('session.subscribed', [clientinfo(State), Topic, ?SUBOPTS]).
 
-chann_unsubscribe(Topic, ClientInfo) ->
+chann_unsubscribe(Topic, State) ->
     ?LOG(debug, "unsubscribe Topic=~p", [Topic]),
     Opts = #{rh => 0, rap => 0, nl => 0, qos => 0},
     emqx_broker:unsubscribe(Topic),
-    emqx_hooks:run('session.unsubscribed', [ClientInfo, Topic, Opts]).
+    emqx_hooks:run('session.unsubscribed', [clientinfo(State), Topic, Opts]).
 
-chann_publish(Topic, Payload, #{clientid := ClientId}) ->
+chann_publish(Topic, Payload, #state{clientid = ClientId}) ->
     ?LOG(debug, "publish Topic=~p, Payload=~p", [Topic, Payload]),
     emqx_broker:publish(
         emqx_message:set_flag(retain, false,
@@ -281,17 +268,17 @@ sockinfo(#state{peername = Peername}) ->
      }.
 
 %% copies from emqx_channel:info/1
-chann_info(State = #state{client_info = ClientInfo}) ->
+chann_info(State) ->
     #{conninfo => conninfo(State),
       conn_state => connected,
-      clientinfo => ClientInfo,
+      clientinfo => clientinfo(State),
       session => maps:from_list(session_info(State)),
       will_msg => undefined
      }.
 
 conninfo(#state{peername = Peername,
-                connected_at = ConnectedAt,
-                client_info = #{clientid := ClientId}}) ->
+                clientid = ClientId,
+                connected_at = ConnectedAt}) ->
     #{socktype => udp,
       sockname => {{127,0,0,1}, 5683},
       peername => Peername,
@@ -341,10 +328,14 @@ stats(#state{sub_topics = SubTopics}) ->
     ProcStats = emqx_misc:proc_stats(),
     lists:append([SockStats, ConnStats, ChanStats, ProcStats]).
 
-clientinfo(PeerHost, ClientId, Username, Password) ->
+clientinfo(#state{peername = {PeerHost, _},
+                  clientid = ClientId,
+                  username = Username,
+                  password = Password}) ->
     #{zone => undefined,
       protocol => coap,
       peerhost => PeerHost,
+      sockport => 5683,      %% FIXME:
       clientid => ClientId,
       username => Username,
       password => Password
