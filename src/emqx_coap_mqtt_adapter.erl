@@ -104,24 +104,23 @@ init({ClientId, Username, Password, Channel}) ->
                     clientid = ClientId,
                     username = Username,
                     password = Password},
+    _NewProps = run_hooks('client.connect', [conninfo(State0)], undefined),
     case emqx_access_control:authenticate(clientinfo(State0)) of
         {ok, _AuthResult} ->
+            _ = run_hooks('client.connack', [conninfo(State0), success], undefined),
+
             State = State0#state{connected_at = os:system_time(second)},
 
             %% TODO: Evict same clientid on other node??
 
-            emqx_hooks:run('client.connected', [clientinfo(State), conninfo(State)]),
+            run_hooks('client.connected', [clientinfo(State), conninfo(State)]),
 
             erlang:send_after(?ALIVE_INTERVAL, self(), check_alive),
-
             emqx_cm:register_channel(ClientId, info(State), stats(State)),
-
             {ok, State};
         {error, Reason} ->
-
-            %% TODO: emqx_hooks:run('client.connected', _, _), ?
-
             ?LOG(debug, "authentication faild: ~p", [Reason]),
+            _ = run_hooks('client.connack', [conninfo(State0), not_authorized], undefined),
             {stop, {shutdown, Reason}}
     end.
 
@@ -197,7 +196,7 @@ terminate(Reason, State = #state{clientid = ClientId, sub_topics = SubTopics}) -
 
     ConnInfo0 = conninfo(State),
     ConnInfo = ConnInfo0#{disconnected_at => erlang:system_time(second)},
-    emqx_hooks:run('client.disconnected', [clientinfo(State), Reason, ConnInfo]).
+    run_hooks('client.disconnected', [clientinfo(State), Reason, ConnInfo]).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -250,6 +249,16 @@ deliver_to_coap(TopicName, Payload, [{TopicFilter, {IsWild, CoapPid}}|T]) ->
     %?LOG(debug, "deliver_to_coap Matched=~p, CoapPid=~p, TopicName=~p, Payload=~p, T=~p", [Matched, CoapPid, TopicName, Payload, T]),
     Matched andalso (CoapPid ! {dispatch, TopicName, Payload}),
     deliver_to_coap(TopicName, Payload, T).
+
+%%--------------------------------------------------------------------
+%% Helper funcs
+
+-compile({inline, [run_hooks/2, run_hooks/3]}).
+run_hooks(Name, Args) ->
+    ok = emqx_metrics:inc(Name), emqx_hooks:run(Name, Args).
+
+run_hooks(Name, Args, Acc) ->
+    ok = emqx_metrics:inc(Name), emqx_hooks:run_fold(Name, Args, Acc).
 
 %%--------------------------------------------------------------------
 %% Info & Stats
