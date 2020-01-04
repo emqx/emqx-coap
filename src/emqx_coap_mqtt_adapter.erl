@@ -104,7 +104,7 @@ init({ClientId, Username, Password, Channel}) ->
                     clientid = ClientId,
                     username = Username,
                     password = Password},
-    _NewProps = run_hooks('client.connect', [conninfo(State0)], undefined),
+    _ = run_hooks('client.connect', [conninfo(State0)], undefined),
     case emqx_access_control:authenticate(clientinfo(State0)) of
         {ok, _AuthResult} ->
             _ = run_hooks('client.connack', [conninfo(State0), success], undefined),
