@@ -347,6 +347,11 @@ clientinfo(#state{peername = {PeerHost, _},
       sockport => 5683,      %% FIXME:
       clientid => ClientId,
       username => Username,
-      password => Password
+      password => Password,
+      peercert => nossl,
+      is_bridge => false,
+      is_superuser => false,
+      mountpoint => undefined,
+      ws_cookie  => undefined
      }.
 
