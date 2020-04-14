@@ -24,12 +24,14 @@
 
 start() ->
     {ok, _} = application:ensure_all_started(gen_coap),
-    {ok, _} = coap_server:start_udp(coap_udp_socket, application:get_env(?APP, port, 5683)),
+    Ip = application:get_env(?APP, ip, undefined),
+    {ok, _} = coap_server:start_udp(coap_udp_socket, Ip, application:get_env(?APP, port, 5683)),
     case application:get_env(?APP, dtls_opts, []) of
         [] -> ok;
         DtlsOpts ->
             DtlsPort = proplists:get_value(port, DtlsOpts),
-            {ok, _} = coap_server:start_dtls(coap_dtls_socket, DtlsPort, DtlsOpts)
+            DtlsOpts1 = proplists:delete(port, DtlsOpts),
+            {ok, _} = coap_server:start_dtls(coap_dtls_socket, Ip, DtlsPort, DtlsOpts1)
     end,
     coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),

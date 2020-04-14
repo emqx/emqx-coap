@@ -1,5 +1,8 @@
 %%-*- mode: erlang -*-
 %% emqx_coap config mapping
+{mapping, "coap.ip", "emqx_coap.ip", [
+  {datatype, string}
+]}.
 
 {mapping, "coap.port", "emqx_coap.port", [
   {datatype, integer}
