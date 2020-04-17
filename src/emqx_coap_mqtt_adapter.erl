@@ -109,7 +109,7 @@ init({ClientId, Username, Password, Channel}) ->
         {ok, _AuthResult} ->
             _ = run_hooks('client.connack', [conninfo(State0), success], undefined),
 
-            State = State0#state{connected_at = os:system_time(second)},
+            State = State0#state{connected_at = erlang:system_time(millisecond)},
 
             %% TODO: Evict same clientid on other node??
 
@@ -195,7 +195,7 @@ terminate(Reason, State = #state{clientid = ClientId, sub_topics = SubTopics}) -
     emqx_cm:unregister_channel(ClientId),
 
     ConnInfo0 = conninfo(State),
-    ConnInfo = ConnInfo0#{disconnected_at => erlang:system_time(second)},
+    ConnInfo = ConnInfo0#{disconnected_at => erlang:system_time(millisecond)},
     run_hooks('client.disconnected', [clientinfo(State), Reason, ConnInfo]).
 
 code_change(_OldVsn, State, _Extra) ->

@@ -22,3 +22,4 @@ rebar3.crashdump
 erlang.mk
 .rebar3/
 etc/emqx_coap.conf.rendered
+.tags*
