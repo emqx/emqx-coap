@@ -24,20 +24,47 @@
 
 start() ->
     {ok, _} = application:ensure_all_started(gen_coap),
-    Ip = application:get_env(?APP, ip, undefined),
-    {ok, _} = coap_server:start_udp(coap_udp_socket, Ip, application:get_env(?APP, port, 5683)),
-    case application:get_env(?APP, dtls_opts, []) of
-        [] -> ok;
-        DtlsOpts ->
-            DtlsPort = proplists:get_value(port, DtlsOpts),
-            DtlsOpts1 = proplists:delete(port, DtlsOpts),
-            {ok, _} = coap_server:start_dtls(coap_dtls_socket, Ip, DtlsPort, DtlsOpts1)
-    end,
+    start_udp(),
+    start_dtls(),
     coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
     emqx_coap_ps_topics:start_link().
 
 stop() ->
-    _ = coap_server:stop_udp(coap_udp_socket),
-    _ = coap_server:stop_dtls(coap_dtls_socket).
+    stop_udp(),
+    stop_dtls().
 
+start_udp() ->
+    BindUdps = application:get_env(?APP, bind_udp, [{5683, []}]),
+    lists:foreach(fun({Port, InetOpt}) ->
+        Name = process_name(coap_udp_socket, Port),
+        coap_server:start_udp(Name, Port, InetOpt)
+    end, BindUdps).
+
+start_dtls() ->
+    case application:get_env(?APP, dtls_opts, []) of
+        [] -> ok;
+        DtlsOpts ->
+            BindDtls = application:get_env(?APP, bind_dtls, [{5684, []}]),
+            lists:foreach(fun({DtlsPort, InetOpt}) ->
+                Name = process_name(coap_dtls_socket, DtlsPort),
+                coap_server:start_dtls(Name, DtlsPort, InetOpt ++ DtlsOpts)
+            end, BindDtls)
+    end.
+
+stop_udp() ->
+    BindUdps = application:get_env(?APP, bind_udp, [{5683, []}]),
+    lists:foreach(fun({Port, _}) ->
+        Name = process_name(coap_udp_socket, Port),
+        coap_server:stop_udp(Name)
+    end, BindUdps).
+
+stop_dtls() ->
+    BindDtls = application:get_env(?APP, bind_dtls, [{5684, []}]),
+    lists:foreach(fun({Port, _}) ->
+        Name = process_name(coap_dtls_socket, Port),
+        coap_server:stop_dtls(Name)
+    end, BindDtls).
+
+process_name(Mod, Port) ->
+    list_to_atom(atom_to_list(Mod) ++ "_" ++ integer_to_list(Port)).
