@@ -32,6 +32,10 @@ init_per_suite(Config) ->
     Config.
 
 set_sepecial_cfg(emqx_coap) ->
+    Opts = application:get_env(emqx_coap, dtls_opts,[]),
+    Opts2 = [{keyfile, emqx_ct_helpers:deps_path(emqx, "etc/certs/key.pem")},
+             {certfile, emqx_ct_helpers:deps_path(emqx, "etc/certs/cert.pem")}],
+    application:set_env(emqx_coap, dtls_opts, emqx_misc:merge_opts(Opts, Opts2)),
     application:set_env(emqx_coap, enable_stats, true);
 set_sepecial_cfg(_) ->
     ok.
