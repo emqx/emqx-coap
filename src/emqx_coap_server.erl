@@ -22,49 +22,82 @@
         , stop/0
         ]).
 
+%%--------------------------------------------------------------------
+%% APIs
+%%--------------------------------------------------------------------
+
 start() ->
     {ok, _} = application:ensure_all_started(gen_coap),
-    start_udp(),
-    start_dtls(),
+    start_listeners(),
     coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
     emqx_coap_ps_topics:start_link().
 
 stop() ->
-    stop_udp(),
-    stop_dtls().
+    stop_listeners().
 
-start_udp() ->
-    BindUdps = application:get_env(?APP, bind_udp, [{5683, []}]),
-    lists:foreach(fun({Port, InetOpt}) ->
-        Name = process_name(coap_udp_socket, Port),
-        coap_server:start_udp(Name, Port, InetOpt)
-    end, BindUdps).
+%%--------------------------------------------------------------------
+%% Internal funcs
+%%--------------------------------------------------------------------
 
-start_dtls() ->
-    case application:get_env(?APP, dtls_opts, []) of
-        [] -> ok;
-        DtlsOpts ->
-            BindDtls = application:get_env(?APP, bind_dtls, [{5684, []}]),
-            lists:foreach(fun({DtlsPort, InetOpt}) ->
-                Name = process_name(coap_dtls_socket, DtlsPort),
-                coap_server:start_dtls(Name, DtlsPort, InetOpt ++ DtlsOpts)
-            end, BindDtls)
+start_listeners() ->
+    lists:foreach(fun start_listener/1, listeners_confs()).
+
+stop_listeners() ->
+    lists:foreach(fun stop_listener/1, listeners_confs()).
+
+start_listener({Proto, ListenOn, Opts}) ->
+    case start_listener(Proto, ListenOn, Opts) of
+        {ok, _Pid} ->
+            io:format("Start coap:~s listener on ~s successfully.~n",
+                      [Proto, format(ListenOn)]);
+        {error, Reason} ->
+            io:format(standard_error, "Failed to start coap:~s listener on ~s - ~0p~n!",
+                      [Proto, format(ListenOn), Reason]),
+            error(Reason)
     end.
 
-stop_udp() ->
-    BindUdps = application:get_env(?APP, bind_udp, [{5683, []}]),
-    lists:foreach(fun({Port, _}) ->
-        Name = process_name(coap_udp_socket, Port),
-        coap_server:stop_udp(Name)
-    end, BindUdps).
+start_listener(udp, ListenOn, Opts) ->
+    coap_server:start_udp('coap:udp', ListenOn, Opts);
+start_listener(dtls, ListenOn, Opts) ->
+    coap_server:start_dtls('coap:dtls', ListenOn, Opts).
 
-stop_dtls() ->
-    BindDtls = application:get_env(?APP, bind_dtls, [{5684, []}]),
-    lists:foreach(fun({Port, _}) ->
-        Name = process_name(coap_dtls_socket, Port),
-        coap_server:stop_dtls(Name)
-    end, BindDtls).
+stop_listener({Proto, ListenOn, _Opts}) ->
+    Ret = stop_listener(Proto, ListenOn),
+    case Ret of
+        ok -> io:format("Stop coap:~s listener on ~s successfully.~n",
+                        [Proto, format(ListenOn)]);
+        {error, Reason} ->
+            io:format(standard_error, "Failed to stop coap:~s listener on ~s - ~p~n.",
+                      [Proto, format(ListenOn), Reason])
+    end,
+    Ret.
 
-process_name(Mod, Port) ->
-    list_to_atom(atom_to_list(Mod) ++ "_" ++ integer_to_list(Port)).
+stop_listener(udp, ListenOn) ->
+    coap_server:stop_udp('coap:udp', ListenOn);
+stop_listener(dtls, ListenOn) ->
+    coap_server:stop_dtls('coap:dtls', ListenOn).
+
+%% XXX: It is a temporary func to convert conf format for esockd
+listeners_confs() ->
+    listeners_confs(udp) ++ listeners_confs(dtls).
+
+listeners_confs(udp) ->
+    Udps = application:get_env(?APP, bind_udp, []),
+    [{udp, Port, [{udp_options, InetOpts}]} || {Port, InetOpts} <- Udps];
+
+listeners_confs(dtls) ->
+    case application:get_env(?APP, dtls_opts, []) of
+        [] -> [];
+        DtlsOpts ->
+            BindDtls = application:get_env(?APP, bind_dtls, []),
+            [{dtls, Port, [{dtls_options, InetOpts ++ DtlsOpts}]} || {Port, InetOpts} <- BindDtls]
+    end.
+
+format(Port) when is_integer(Port) ->
+    io_lib:format("0.0.0.0:~w", [Port]);
+format({Addr, Port}) when is_list(Addr) ->
+    io_lib:format("~s:~w", [Addr, Port]);
+format({Addr, Port}) when is_tuple(Addr) ->
+    io_lib:format("~s:~w", [inet:ntoa(Addr), Port]).
+
