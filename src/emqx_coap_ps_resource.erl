@@ -241,7 +241,7 @@ handle_received_publish(Topic, MaxAge, Format, Payload) ->
 handle_received_create(TopicPrefix, MaxAge, Payload) ->
     case core_link:decode(Payload) of
         [{rootless, [Topic], [{ct, CT}]}] when is_binary(Topic), Topic =/= <<>> ->
-            TrueTopic = http_uri:decode(Topic),
+            [{TrueTopic, _}] = uri_string:dissect_query(Topic),
             ?LOG(debug, "decoded link-format payload, the Topic=~p, CT=~p~n", [TrueTopic, CT]),
             LocPath = concatenate_location_path([<<"ps">>, TopicPrefix, TrueTopic]),
             FullTopic = binary:part(LocPath, 4, byte_size(LocPath)-4),
