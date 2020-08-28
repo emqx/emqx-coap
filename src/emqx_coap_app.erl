@@ -27,20 +27,14 @@
         ]).
 
 start(_Type, _Args) ->
-    Envs = [{dtls_opts, application:get_env(?APP, dtls_opts, [])},
-            {bind_dtls, application:get_env(?APP, bind_dtls, [])},
-            {bind_udp, application:get_env(?APP, bind_udp, [])}],
     {ok, Sup} = emqx_coap_sup:start_link(),
     coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
     emqx_coap_ps_topics:start_link(),
-    emqx_coap_server:start(Envs),
+    emqx_coap_server:start(application:get_all_env(?APP)),
     {ok,Sup}.
 
 stop(_State) ->
     coap_server_registry:remove_handler([<<"mqtt">>], emqx_coap_resource, undefined),
     coap_server_registry:remove_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
-    Envs = [{dtls_opts, application:get_env(?APP, dtls_opts, [])},
-            {bind_dtls, application:get_env(?APP, bind_dtls, [])},
-            {bind_udp, application:get_env(?APP, bind_udp, [])}],
-    emqx_coap_server:stop(Envs).
+    emqx_coap_server:stop(application:get_all_env(?APP)).
