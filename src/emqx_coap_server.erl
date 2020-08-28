@@ -18,33 +18,30 @@
 
 -include("emqx_coap.hrl").
 
--export([ start/0
-        , stop/0
+-export([ start/1
+        , stop/1
         ]).
 
 %%--------------------------------------------------------------------
 %% APIs
 %%--------------------------------------------------------------------
 
-start() ->
+start(Envs) ->
     {ok, _} = application:ensure_all_started(gen_coap),
-    start_listeners(),
-    coap_server_registry:add_handler([<<"mqtt">>], emqx_coap_resource, undefined),
-    coap_server_registry:add_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
-    emqx_coap_ps_topics:start_link().
+    start_listeners(Envs).
 
-stop() ->
-    stop_listeners().
+stop(Envs) ->
+    stop_listeners(Envs).
 
 %%--------------------------------------------------------------------
 %% Internal funcs
 %%--------------------------------------------------------------------
 
-start_listeners() ->
-    lists:foreach(fun start_listener/1, listeners_confs()).
+start_listeners(Envs) ->
+    lists:foreach(fun start_listener/1, listeners_confs(Envs)).
 
-stop_listeners() ->
-    lists:foreach(fun stop_listener/1, listeners_confs()).
+stop_listeners(Envs) ->
+    lists:foreach(fun stop_listener/1, listeners_confs(Envs)).
 
 start_listener({Proto, ListenOn, Opts}) ->
     case start_listener(Proto, ListenOn, Opts) of
@@ -79,18 +76,18 @@ stop_listener(dtls, ListenOn) ->
     coap_server:stop_dtls('coap:dtls', ListenOn).
 
 %% XXX: It is a temporary func to convert conf format for esockd
-listeners_confs() ->
-    listeners_confs(udp) ++ listeners_confs(dtls).
+listeners_confs(Envs) ->
+    listeners_confs(udp, Envs) ++ listeners_confs(dtls, Envs).
 
-listeners_confs(udp) ->
-    Udps = application:get_env(?APP, bind_udp, []),
+listeners_confs(udp, Envs) ->
+    Udps = proplists:get_value(bind_udp, Envs, []),
     [{udp, Port, [{udp_options, InetOpts}]} || {Port, InetOpts} <- Udps];
 
-listeners_confs(dtls) ->
-    case application:get_env(?APP, dtls_opts, []) of
+listeners_confs(dtls, Envs) ->
+    case proplists:get_value(dtls_opts, Envs, []) of
         [] -> [];
         DtlsOpts ->
-            BindDtls = application:get_env(?APP, bind_dtls, []),
+            BindDtls = proplists:get_value(bind_dtls, Envs, []),
             [{dtls, Port, [{dtls_options, InetOpts ++ DtlsOpts}]} || {Port, InetOpts} <- BindDtls]
     end.
 
