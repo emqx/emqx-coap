@@ -38,6 +38,8 @@ start(_Type, _Args) ->
     {ok,Sup}.
 
 stop(_State) ->
+    coap_server_registry:remove_handler([<<"mqtt">>], emqx_coap_resource, undefined),
+    coap_server_registry:remove_handler([<<"ps">>], emqx_coap_ps_resource, undefined),
     Envs = [{dtls_opts, application:get_env(?APP, dtls_opts, [])},
             {bind_dtls, application:get_env(?APP, bind_dtls, [])},
             {bind_udp, application:get_env(?APP, bind_udp, [])}],
