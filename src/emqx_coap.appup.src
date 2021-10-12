@@ -1,0 +1,15 @@
+%% -*-: erlang -*-
+{VSN,
+  [
+    {<<"4.2.[0-8]">>, [
+      {load_module, emqx_coap_mqtt_adapter, brutal_purge, soft_purge, []}
+    ]},
+    {<<".*">>, []}
+  ],
+  [
+    {<<"4.2.[0-8]">>, [
+      {load_module, emqx_coap_mqtt_adapter, brutal_purge, soft_purge, []}
+    ]},
+    {<<".*">>, []}
+  ]
+}.
