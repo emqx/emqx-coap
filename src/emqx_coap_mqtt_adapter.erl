@@ -37,7 +37,7 @@
         , stop/1
         ]).
 
--export([call/2]).
+-export([call/2, call/3]).
 
 %% gen_server.
 -export([ init/1
@@ -91,6 +91,8 @@ publish(Pid, Topic, Payload) ->
 
 %% For emqx_management plugin
 call(Pid, Msg) ->
+    Pid ! Msg, ok.
+call(Pid, Msg, _Timeout) ->
     Pid ! Msg, ok.
 
 %%--------------------------------------------------------------------
